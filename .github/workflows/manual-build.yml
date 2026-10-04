@@ -1,0 +1,103 @@
+name: Build Donut manually
+run-name: Manual Donut build (${{ inputs.platform }})
+
+"on":
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Private source branch, tag, or commit SHA (visible in run metadata)
+        required: true
+        default: main
+        type: string
+      platform:
+        description: Build one platform per run
+        required: true
+        default: macos-arm64
+        type: choice
+        options:
+          - macos-arm64
+          - macos-x64
+          - windows-x64
+          - linux-x64
+      run_tests:
+        description: Run local automation regression unit tests before packaging
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-donut-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Forks, pull requests, collaborators, and non-main workflow refs get no job.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'nguyenducluongg/lnbrowserbuild' &&
+      github.actor == 'nguyenducluongg' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ${{ inputs.platform == 'macos-arm64' && 'macos-15' || inputs.platform == 'macos-x64' && 'macos-15-intel' || inputs.platform == 'windows-x64' && 'windows-2022' || 'ubuntu-22.04' }}
+    timeout-minutes: 180
+    environment: private-source-build
+    env:
+      CI: "true"
+      HUSKY: "0"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_RELEASE_DEBUG: "0"
+      CARGO_PROFILE_RELEASE_STRIP: symbols
+      DONUT_INTERNAL_MODE: "1"
+    steps:
+      - name: Checkout public build controller only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: builder
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up Node without a dependency cache
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Check private destination and scoped token
+        id: source_check
+        env:
+          DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
+          DONUT_SOURCE_REF: ${{ inputs.source_ref }}
+        run: node builder/ci/private-release.mjs check
+
+      - name: Checkout private source without keeping credentials
+        id: source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: nguyenducluongg/donut
+          ref: ${{ inputs.source_ref }}
+          token: ${{ secrets.DONUT_SOURCE_TOKEN }}
+          path: private-source
+          persist-credentials: false
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Install, test and package (detailed output stays private)
+        id: compile
+        env:
+          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
+          DONUT_RUN_TESTS: ${{ inputs.run_tests }}
+          NODE_OPTIONS: --max-old-space-size=3072
+        run: node builder/ci/run-build.mjs
+
+      - name: Save diagnostics and binaries to the private source repository
+        if: ${{ always() && !cancelled() && steps.source_check.outcome == 'success' }}
+        env:
+          DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
+          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
+          DONUT_BUILD_OUTCOME: ${{ steps.compile.outcome }}
+          DONUT_SOURCE_SHA: ${{ steps.source.outputs.commit }}
+        run: node builder/ci/private-release.mjs publish
