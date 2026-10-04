@@ -1,5 +1,5 @@
 import { openSync, closeSync, mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve, win32 } from "node:path";
+import { join, resolve, win32, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { validateContext } from "./private-release.mjs";
@@ -15,7 +15,10 @@ export function selectBuildShell(env, platform = process.platform, fileExists = 
 }
 
 export function shellPath(value, platform = process.platform) {
-  return (platform === "win32" ? win32.resolve(value) : resolve(value)).replaceAll("\\", "/");
+  // Use the requested OS, not the host OS used by cross-platform tests.
+  return platform === "win32"
+    ? win32.resolve(value).replaceAll("\\", "/")
+    : posix.resolve(value);
 }
 
 export async function main(env = process.env, {

@@ -58,10 +58,15 @@ và [environment docs](https://docs.github.com/en/actions/how-tos/deploy/configu
 
 Lỗi Node test đọc workflow không còn dùng đã sửa; frontend/typecheck chạy trước
 release sidecar compile. Rust còn filter `local_runtime` cho lazy RAM recovery.
-Controller tests: **22 PASS**, gồm Windows paths/startup/streaming và log rỗng/mất;
-fresh Windows compilation/package/runtime vẫn cần Run workflow mới.
-Fresh compilation/package/runtime vẫn chờ lượt người dùng tự bấm build.
-Public failure chỉ nêu stage hoặc phase/HTTP status; không HTTP bodies/compiler
+Controller tests sau path fix: **23 PASS trên Mac**, gồm Windows/POSIX paths,
+startup/streaming và log rỗng/mất. Lượt Windows dùng `293dec8` có 21/22 PASS,
+chỉ fail helper giả lập POSIX path dùng host-native resolver; đã đổi sang
+explicit `path.posix`/`path.win32`, giữ assertion và bổ sung regression.
+Actual tiny Git Bash smoke đã PASS trên native Windows. Lượt đó dừng trước
+token/source checkout nên chưa build app và chưa tạo private diagnostic draft;
+controller test error đọc trực tiếp trong public log. Native suite mới và
+fresh compilation/package/runtime vẫn chờ người dùng bấm Run workflow mới.
+Public compiler/publisher failure chỉ nêu stage hoặc phase/HTTP status; không HTTP bodies/compiler
 output. Draft link in ngay sau tạo release, kể cả upload sau đó fail; đọc
 `build.log` private. Windows run `37204383317` chỉ lưu được manifest, không log;
 không suy command bị lỗi hoặc yêu cầu đổi token từ dòng publish chung.

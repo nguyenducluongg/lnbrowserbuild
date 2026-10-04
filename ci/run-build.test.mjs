@@ -25,7 +25,15 @@ test("Windows selects native Git Bash explicitly, including spaces, never WSL/PA
 
 test("shell paths retain Windows drives/spaces and native POSIX paths", () => {
   assert.equal(shellPath("D:\\a\\build tools\\ci\\build.sh", "win32"), "D:/a/build tools/ci/build.sh");
+  assert.equal(shellPath("D:/a/build tools/ci/../ci/build.sh", "win32"), "D:/a/build tools/ci/build.sh");
   assert.equal(shellPath("/Volumes/SSD/build tools/ci/build.sh", "darwin"), "/Volumes/SSD/build tools/ci/build.sh");
+  assert.equal(shellPath("/home/runner/build tools/ci/../ci/build.sh", "linux"), "/home/runner/build tools/ci/build.sh");
+});
+
+test("POSIX shell paths preserve literal backslashes instead of treating them as separators", () => {
+  const path = "/build tools/literal\\name/ci/build.sh";
+  assert.equal(shellPath(path, "darwin"), path);
+  assert.equal(shellPath(path, "linux"), path);
 });
 
 function fixture(t) {
