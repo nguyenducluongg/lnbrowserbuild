@@ -68,6 +68,19 @@ test("manual build includes forced-local Rust regression tests without engine E2
   assert.doesNotMatch(build, /pnpm e2e|wayfern\.com|wayfern-local.*curl/);
 });
 
+test("frontend typecheck and output guards finish before release sidecars are built", () => {
+  const build = readFileSync(new URL("./build.sh", import.meta.url), "utf8");
+  const frontend = build.indexOf("set_stage frontend-build");
+  const proxy = build.indexOf("set_stage proxy-build");
+  assert.ok(frontend >= 0 && proxy > frontend);
+  const beforeProxy = build.slice(frontend, proxy);
+  assert.match(beforeProxy, /pnpm build/);
+  assert.match(beforeProxy, /test -s dist\/index\.html/);
+  assert.match(beforeProxy, /Refusing to embed frontend source maps/);
+  assert.equal((build.match(/set_stage frontend-build/g) ?? []).length, 1);
+  assert.ok(build.indexOf("set_stage xray-download") < build.indexOf("set_stage tauri-package"));
+});
+
 for (const outcome of ["success", "failure"]) {
   test(`mocked ${outcome} publication keeps files private and selects only expected assets`, async (t) => {
     const scratch = mkdtempSync(join(tmpdir(), "donut-controller-test-"));

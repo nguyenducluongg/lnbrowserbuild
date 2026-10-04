@@ -51,6 +51,16 @@ set_stage node-tests
 node --test src/lib/*.test.mjs scripts/generate-licenses.test.mjs \
   src-tauri/download-xray.test.mjs
 
+# Fail on frontend/type errors before the expensive release sidecar compilation.
+set_stage frontend-build
+pnpm build
+# Refuse the white/empty frontend packaging failure, or source-map shipping.
+test -s dist/index.html
+if [[ -n "$(find dist -type f -name '*.map' -print -quit)" ]]; then
+  printf 'Refusing to embed frontend source maps.\n' >&2
+  exit 1
+fi
+
 # Prepare sidecars explicitly with --locked, instead of executing the original
 # copy hook twice or letting it choose a different Cargo target directory.
 set_stage proxy-build
@@ -63,15 +73,6 @@ cp "src-tauri/target/$build_target/release/donut-proxy$sidecar_extension" \
   "src-tauri/binaries/donut-proxy-$build_target$sidecar_extension"
 set_stage xray-download
 node src-tauri/download-xray.mjs --target "$build_target"
-
-set_stage frontend-build
-pnpm build
-# Refuse the white/empty frontend packaging failure, or source-map shipping.
-test -s dist/index.html
-if [[ -n "$(find dist -type f -name '*.map' -print -quit)" ]]; then
-  printf 'Refusing to embed frontend source maps.\n' >&2
-  exit 1
-fi
 
 if [[ "${DONUT_RUN_TESTS:-true}" == true ]]; then
   set_stage rust-tests
