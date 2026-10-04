@@ -1,80 +1,64 @@
-# LN Browser manual build controller
+# Bộ build thủ công cho Donut nội bộ
 
-This public repository contains **only build orchestration**, not the Donut
-application source. Source lives in the private repository
-[`nguyenducluongg/donut`](https://github.com/nguyenducluongg/donut).
+Repo public này chỉ chứa controller build cho **bản fix nội bộ, không thương mại**.
+Source app nằm ở [donut private](https://github.com/nguyenducluongg/donut).
+Không có source app, browser bundle hoặc profiles trong repo public.
 
-Nothing builds on push, pull request, tag, schedule, or repository dispatch.
-Only the repository owner can manually run the workflow from `main`. One
-standard GitHub-hosted runner builds one platform per run. No local build or
-self-hosted Mac runner is used.
+## Bấm build
 
-## One-time setup (no build is triggered)
+1. Mở [Actions → Build Donut manually](https://github.com/nguyenducluongg/lnbrowserbuild/actions/workflows/manual-build.yml).
+2. Bấm **Run workflow mới**, branch `main`.
+3. `source_ref=main` hoặc full commit SHA source; chọn `macos-arm64` cho Mac
+   Apple Silicon, giữ `run_tests=true`.
+4. Bấm nút xanh; approve environment nếu đã cấu hình.
+5. Tải kết quả/log ở [Releases private](https://github.com/nguyenducluongg/donut/releases).
+   Success tạo prerelease private; failure giữ draft với `build.log` và manifest.
 
-1. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
-   owned by `nguyenducluongg`, with an expiry, selecting **only `donut`**.
-   Grant repository **Contents: Read and write** (Metadata read is automatic).
-   Write access is needed to store results in private Releases, not to publish
-   source in this public repository. Do not use a broad/classic token.
-2. In this repo, open **Settings → Environments → New environment** and name it
-   exactly **`private-source-build`**. Restrict deployment branches to `main`.
-   Optionally require review by the owner before secrets are released.
-3. Add an **environment secret** named **`DONUT_SOURCE_TOKEN`**, containing the
-   token from step 1. Never put the token in a file, commit, workflow input, or chat.
+Push/PR/tag/schedule không chạy build. Chỉ owner chạy từ `main`, một platform
+mỗi lượt. Sau cập nhật controller phải tạo run mới, không rerun job cũ.
+[GitHub rerun semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 
-[GitHub token documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
-and [environment documentation](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+## Token và environment
 
-## Click to build manually
+Lượt đầu đã xác minh token/checkout/private log upload hoạt động.
+Chỉ cần setup lại khi mất cấu hình, token hết hạn hoặc đổi quyền:
 
-1. Open [Actions → Build Donut manually](https://github.com/nguyenducluongg/lnbrowserbuild/actions/workflows/manual-build.yml).
-2. Click **Run workflow**. Keep the workflow branch **`main`**.
-3. Set `source_ref` to `main` (latest private source) or a full source commit SHA
-   (recommended for a reproducible build). This input is visible publicly: do
-   not use a confidential branch name or any credential.
-4. Choose `macos-arm64` for an Apple Silicon Mac. Alternatives: `macos-x64`,
-   `windows-x64`, `linux-x64`. Keep `run_tests` enabled.
-5. Click the green **Run workflow** button. Approve the environment if configured.
-6. Download results from **the private repo's [Releases](https://github.com/nguyenducluongg/donut/releases)**,
-   not from this repo's Actions artifacts. Success produces a private prerelease;
-   failure produces a draft with `build.log` and `BUILD-MANIFEST.json` for the owner.
+- Environment `private-source-build`, chỉ branch `main`.
+- Environment secret `DONUT_SOURCE_TOKEN`: fine-grained token chỉ chọn repo
+  `donut`, Contents read/write, Metadata read. Write dùng lưu private Releases.
+- Không dùng All repositories/broad token hoặc nhập token vào workflow input,
+  source, file .env hay chat. Secret không được chuyển tới install/build steps.
 
-After a source/controller update, start a **new Run workflow**, not a rerun of
-an old failed job. GitHub reruns keep the original event's controller SHA/ref.
-[Rerun semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
-Local entry point on the SSD is now
-`/Volumes/SSD/Desktop/vibecoding/donutbrowser/workspace`: `donut/` is private
-source; `lnbrowserbuild/` is this controller. Old lab paths are compatibility links.
+[GitHub token docs](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+và [environment docs](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
 
-[GitHub's manual-run instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+## Phạm vi và bảo mật
 
-## Privacy, build scope, and limits
+- Chỉ build manager Donut, không download/embed/repatch/sign Wayfern.
+  Không launch browser hoặc thay thế fresh REST/MCP acceptance.
+- macOS ad-hoc signed, không notarized; Windows unsigned.
+- Standard hosted runner; Node 24, pinned pnpm, frozen lockfiles, Cargo jobs=1.
+  Không build trên Mac local, không self-hosted runner.
+- Compiler/test/install/package output và artifacts lưu private. Không public
+  upload-artifact/source archives/dependency cache.
+- Kiểm tra repo source còn private trước checkout/upload; Git credentials
+  không persist. Public vẫn có thể thấy status/timing/platform/inputs/commit hashes.
+  Không đưa branch names mật vào input. Runner/dependencies vẫn phải được tin cậy.
+- [Standard public hosted compute](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
+  không larger runners, không cam kết mọi storage/product charge bằng 0.
 
-- Compiler, install, test, and packaging output is redirected to a private log.
-  No public source archives, compiled artifacts, logs, or dependency caches are
-  uploaded. Credentials are scoped to checkout/publish steps and not retained
-  by Git or passed to dependency installation/build steps.
-- Repository privacy is checked before checkout and again before private upload.
-  Changing `donut` to public must fail closed. Run timing, status, platform, inputs,
-  commit hashes and checkout metadata can still be visible in the public workflow.
-- This is privacy hardening, **not a cryptographic confidentiality guarantee**:
-  the GitHub runner and executed source/dependencies must be trusted. Compiled
-  frontend JS is part of a desktop binary and can be inspected by its recipient.
-- Builds use Node 24, the source's pinned pnpm version, frozen JS/Rust lockfiles,
-  one Cargo job, and no cache shared with forks. A clean build can take longer.
-  The first user-triggered run passed authentication, checkout and private-log
-  publication, then failed a source test that referenced removed upstream release
-  workflows. That test now checks the current Tauri packaging contract; fresh
-  compilation/runtime are still pending. Controller tests pass 9 checks.
-- This builds the **Donut manager**, not the Wayfern browser engine. It does not
-  bundle/download/re-patch Wayfern, start browser profiles, or run browser E2E.
-  Keep the selected fixed Wayfern binary separately; packaging is not proof of
-  fresh REST/MCP runtime acceptance.
-- macOS packages are **ad-hoc signed, not Apple-notarized**. Windows packages are
-  unsigned. Existing Apple signing secrets are not needed or included.
-- Standard public hosted runner compute is free under
-  [GitHub's documented billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
-  Larger runners are not used; private source stays private. This does not promise
-  that every storage/product charge is zero. Follow GitHub usage policies.
+Lỗi Node test đọc workflow không còn dùng đã sửa. Controller tests: 9 PASS.
+Fresh compilation/package/runtime vẫn chờ lượt người dùng tự bấm build.
+Public failure chỉ nêu stage; đọc `build.log` ở private draft để biết lỗi chính xác.
 
-Local controller checks (no build): `node --test ci/private-release.test.mjs`.
+## Thư mục trên SSD và quyền sử dụng
+
+`/Volumes/SSD/Desktop/vibecoding/donutbrowser/workspace`:
+`donut/` là source; `lnbrowserbuild/` là controller; binary và tài liệu bản fix
+ở cùng workspace. Hướng dẫn source chi tiết nằm trong private `docs/BUILD.md`.
+
+Controller dùng theo [LICENSE nội bộ](LICENSE). Repo public phục vụ build,
+không phải release source app hoặc lời cấp phép sử dụng thương mại.
+Third-party tools/GitHub Actions giữ giấy phép riêng.
+
+Kiểm tra nhẹ: `node --test ci/private-release.test.mjs`; lệnh này không build app.
