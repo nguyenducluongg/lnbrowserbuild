@@ -9,7 +9,7 @@ Không có source app, browser bundle hoặc profiles trong repo public.
 1. Mở [Actions → Build Donut manually](https://github.com/nguyenducluongg/lnbrowserbuild/actions/workflows/manual-build.yml).
 2. Bấm **Run workflow mới**, branch `main`.
 3. `source_ref=main` hoặc full commit SHA source; chọn `macos-arm64` cho Mac
-   Apple Silicon, giữ `run_tests=true`.
+   Apple Silicon hoặc `windows-x64` cho Windows, giữ `run_tests=true`.
 4. Bấm nút xanh; approve environment nếu đã cấu hình.
 5. Tải kết quả/log ở [Releases private](https://github.com/nguyenducluongg/donut/releases).
    Success tạo prerelease private; failure giữ draft với `build.log` và manifest.
@@ -36,9 +36,15 @@ và [environment docs](https://docs.github.com/en/actions/how-tos/deploy/configu
 
 - Chỉ build manager Donut, không download/embed/repatch/sign Wayfern.
   Không launch browser hoặc thay thế fresh REST/MCP acceptance.
-- `run_tests=true` chạy Rust filters `local_agent` và `local_wayfern` tuần tự.
-  Bản source local-only chặn browser/manager updates nguồn gốc; runtime cần
-  catalog/payload fixed local riêng. Windows/Linux payloads vẫn pending.
+- `run_tests=true` chạy Rust filters `local_agent`, `local_wayfern` và
+  `local_runtime` tuần tự. Bản source local-only chặn browser/manager updates
+  nguồn gốc; runtime cần catalog/payload fixed local riêng. Windows/Linux
+  payloads vẫn pending.
+- Controller luôn kiểm tra bootstrap/private publisher trước checkout source:
+  Windows dùng Git Bash native theo đường dẫn cụ thể, không chọn WSL qua PATH.
+  Shell scripts được ghim LF qua `.gitattributes` khi checkout Windows.
+  Compiler output streaming vào log private, có startup error/exit/signal.
+  Log rỗng/mất được ghi placeholder rõ ràng, không coi build là thành công.
 - macOS ad-hoc signed, không notarized; Windows unsigned.
 - Standard hosted runner; Node 24, pinned pnpm, frozen lockfiles, Cargo jobs=1.
   Không build trên Mac local, không self-hosted runner.
@@ -50,9 +56,15 @@ và [environment docs](https://docs.github.com/en/actions/how-tos/deploy/configu
 - [Standard public hosted compute](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
   không larger runners, không cam kết mọi storage/product charge bằng 0.
 
-Lỗi Node test đọc workflow không còn dùng đã sửa. Controller tests: 10 PASS.
+Lỗi Node test đọc workflow không còn dùng đã sửa; frontend/typecheck chạy trước
+release sidecar compile. Rust còn filter `local_runtime` cho lazy RAM recovery.
+Controller tests: **22 PASS**, gồm Windows paths/startup/streaming và log rỗng/mất;
+fresh Windows compilation/package/runtime vẫn cần Run workflow mới.
 Fresh compilation/package/runtime vẫn chờ lượt người dùng tự bấm build.
-Public failure chỉ nêu stage; đọc `build.log` ở private draft để biết lỗi chính xác.
+Public failure chỉ nêu stage hoặc phase/HTTP status; không HTTP bodies/compiler
+output. Draft link in ngay sau tạo release, kể cả upload sau đó fail; đọc
+`build.log` private. Windows run `37204383317` chỉ lưu được manifest, không log;
+không suy command bị lỗi hoặc yêu cầu đổi token từ dòng publish chung.
 
 ## Thư mục trên SSD và quyền sử dụng
 
@@ -64,4 +76,5 @@ Controller dùng theo [LICENSE nội bộ](LICENSE). Repo public phục vụ bui
 không phải release source app hoặc lời cấp phép sử dụng thương mại.
 Third-party tools/GitHub Actions giữ giấy phép riêng.
 
-Kiểm tra nhẹ: `node --test ci/private-release.test.mjs`; lệnh này không build app.
+Kiểm tra nhẹ: `node --test --test-concurrency=1 ci/private-release.test.mjs ci/run-build.test.mjs`;
+lệnh này chỉ dùng mocks/tiny shell fixture, không build app.

@@ -3,7 +3,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { validateContext, validateSourceRef, assertPrivateRepository, releaseTag, isBundleAsset, main } from "./private-release.mjs";
+import { validateContext, validateSourceRef, assertPrivateRepository, releaseTag, isBundleAsset, main, PrivateReleaseError, publicReleaseFailure } from "./private-release.mjs";
 
 const context = {
   GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch",
@@ -43,6 +43,14 @@ test("loose source, debug symbols and source maps are never selected as binaries
   for (const name of ["Donut.dmg", "Donut.exe", "donut.deb", "Donut.AppImage"]) assert.ok(isBundleAsset(name));
   for (const name of ["source.zip", "app.js", "app.js.map", "Cargo.lock", ".env", "app.pdb"]) assert.ok(!isBundleAsset(name));
 });
+
+test("public publication errors expose only an allowlisted phase/status, never error text", () => {
+  assert.match(publicReleaseFailure(new PrivateReleaseError("asset-upload", 422)), /asset-upload \(HTTP 422\)/);
+  const secret = "synthetic-private-token-and-body";
+  assert.ok(!publicReleaseFailure(new Error(secret)).includes(secret));
+  assert.ok(!publicReleaseFailure(new PrivateReleaseError(secret, 401)).includes(secret));
+  assert.ok(!publicReleaseFailure(new PrivateReleaseError("asset-upload", secret)).includes(secret));
+});
 test("workflow has no automatic triggers, public artifacts, or dependency caches", () => {
   const workflow = readFileSync(new URL("../.github/workflows/manual-build.yml", import.meta.url), "utf8");
   assert.match(workflow, /workflow_dispatch:/);
@@ -50,6 +58,8 @@ test("workflow has no automatic triggers, public artifacts, or dependency caches
   assert.doesNotMatch(workflow, /upload-artifact|actions\/cache|Swatinem\/rust-cache/);
   assert.equal((workflow.match(/persist-credentials: false/g) ?? []).length, 2);
   assert.match(workflow, /environment: private-source-build/);
+  assert.match(workflow, /node --test --test-concurrency=1 builder\/ci\/private-release\.test\.mjs builder\/ci\/run-build\.test\.mjs/);
+  assert.match(readFileSync(new URL("../.gitattributes", import.meta.url), "utf8"), /^\*\.sh text eol=lf$/m);
 });
 
 test("manual packages preserve Tauri's resource map and verify the macOS Xray license", () => {
@@ -81,8 +91,14 @@ test("frontend typecheck and output guards finish before release sidecars are bu
   assert.ok(build.indexOf("set_stage xray-download") < build.indexOf("set_stage tauri-package"));
 });
 
-for (const outcome of ["success", "failure"]) {
-  test(`mocked ${outcome} publication keeps files private and selects only expected assets`, async (t) => {
+for (const [outcome, platform, diagnostic] of [
+  ["success", "macos-arm64", "present"],
+  ["failure", "macos-arm64", "present"],
+  ["failure", "windows-x64", "empty"],
+  ["failure", "windows-x64", "missing"],
+  ["failure", "windows-x64", "upload-rejected"],
+]) {
+  test(`mocked ${platform} ${outcome} publication with ${diagnostic} log stays private`, async (t) => {
     const scratch = mkdtempSync(join(tmpdir(), "donut-controller-test-"));
     try {
       const bundle = join(scratch, "private-source/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg");
@@ -91,7 +107,9 @@ for (const outcome of ["success", "failure"]) {
       mkdirSync(output);
       writeFileSync(join(bundle, "Donut.dmg"), "binary-fixture");
       writeFileSync(join(bundle, "private-source.zip"), "must-not-upload");
-      writeFileSync(join(output, "build.log"), "synthetic-private-diagnostic");
+      if (diagnostic !== "missing") {
+        writeFileSync(join(output, "build.log"), diagnostic === "empty" ? "" : "synthetic-private-diagnostic");
+      }
       const uploads = [];
       const updates = [];
       let created;
@@ -100,7 +118,13 @@ for (const outcome of ["success", "failure"]) {
         assert.equal(options.headers.Authorization, "Bearer mock-token");
         if (url.hostname === "uploads.github.com") {
           uploads.push(url.searchParams.get("name"));
-          for await (const chunk of options.body) assert.ok(chunk.length);
+          let bytes = 0;
+          for await (const chunk of options.body) bytes += chunk.length;
+          if (bytes === 0) return new Response("private-empty-upload-error", { status: 422 });
+          assert.equal(bytes, Number(options.headers["Content-Length"]));
+          if (diagnostic === "upload-rejected" && url.searchParams.get("name") === "build.log") {
+            return new Response("synthetic-private-server-body", { status: 403 });
+          }
           return new Response("{}", { status: 201 });
         }
         assert.equal(url.origin, "https://api.github.com");
@@ -122,19 +146,25 @@ for (const outcome of ["success", "failure"]) {
       const command = process.argv[2];
       process.argv[2] = "publish";
       try {
-        await main({ ...context, GITHUB_WORKSPACE: scratch, RUNNER_TEMP: scratch,
+        const publication = main({ ...context, GITHUB_WORKSPACE: scratch, RUNNER_TEMP: scratch,
           GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: "b".repeat(40),
           DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "mock-token",
-          DONUT_BUILD_PLATFORM: "macos-arm64", DONUT_BUILD_OUTCOME: outcome });
+          DONUT_BUILD_PLATFORM: platform, DONUT_BUILD_OUTCOME: outcome });
+        if (diagnostic === "upload-rejected") {
+          await assert.rejects(publication, error => error instanceof PrivateReleaseError &&
+            error.phase === "asset-upload" && error.httpStatus === 403);
+        } else await publication;
       } finally {
         if (command === undefined) delete process.argv[2]; else process.argv[2] = command;
       }
       assert.equal(created.draft, true);
+      assert.ok(messages.some(message => message.startsWith("Private draft release:")));
       assert.deepEqual(uploads, outcome === "success"
         ? ["BUILD-MANIFEST.json", "Donut.dmg", "build.log"]
         : ["BUILD-MANIFEST.json", "build.log"]);
       assert.deepEqual(updates, outcome === "success" ? [{ draft: false }] : []);
-      assert.ok(messages.every((message) => !message.includes("synthetic-private-diagnostic") && !message.includes("mock-token")));
+      assert.ok(messages.every((message) => !message.includes("synthetic-private-diagnostic") &&
+        !message.includes("synthetic-private-server-body") && !message.includes("mock-token")));
       const manifest = JSON.parse(readFileSync(join(output, "BUILD-MANIFEST.json"), "utf8"));
       assert.deepEqual(manifest.binaries, outcome === "success" ? ["Donut.dmg"] : []);
       assert.equal(manifest.wayfernIncluded, false);

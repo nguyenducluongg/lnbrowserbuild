@@ -1,39 +1,87 @@
-import { openSync, closeSync, mkdirSync, existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { openSync, closeSync, mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve, win32 } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { validateContext } from "./private-release.mjs";
 
-try {
-  validateContext(process.env);
-  const workspace = process.env.GITHUB_WORKSPACE;
-  const privateOutput = join(process.env.RUNNER_TEMP, "donut-private");
-  mkdirSync(privateOutput, { recursive: true, mode: 0o700 });
-  const log = openSync(join(privateOutput, "build.log"), "a", 0o600);
-  // Forward-slash drive paths also work in Git Bash on Windows runners.
-  const shellPath = (value) => resolve(value).replaceAll("\\", "/");
-  console.log("Building on GitHub. Detailed diagnostics are not printed publicly.");
-  const child = spawnSync("bash", [shellPath(join(workspace, "builder/ci/build.sh"))], {
-    stdio: ["ignore", log, log],
-    env: {
-      ...process.env,
-      DONUT_SOURCE_DIR: shellPath(join(workspace, "private-source")),
-      DONUT_CONTROLLER_DIR: shellPath(join(workspace, "builder")),
-      DONUT_PRIVATE_OUTPUT_DIR: shellPath(privateOutput),
-    },
-  });
-  closeSync(log);
-  if (child.error || child.status !== 0) {
-    const knownStages = new Set(["runner-setup", "dependencies", "node-tests", "proxy-build",
-      "xray-download", "frontend-build", "rust-tests", "tauri-package", "package-verification"]);
-    const marker = join(privateOutput, "build-stage.txt");
-    const recorded = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
-    const stage = knownStages.has(recorded) ? recorded : "unknown";
-    console.error(`Build failed at ${stage}. Consult build.log in the private diagnostic draft release.`);
-    process.exitCode = 1;
-  } else {
-    console.log("Build complete. Publishing to the private repository next.");
+export function selectBuildShell(env, platform = process.platform, fileExists = existsSync) {
+  if (platform !== "win32") return "bash";
+  // Never let Windows PATH choose WSL/MSYS2 instead of the runner's Git Bash.
+  for (const directory of new Set([env.ProgramW6432, env.ProgramFiles, "C:\\Program Files"].filter(Boolean))) {
+    const candidate = win32.join(directory, "Git", "bin", "bash.exe");
+    if (fileExists(candidate)) return candidate;
   }
-} catch {
-  console.error("Build controller setup failed; no private details were printed.");
-  process.exitCode = 1;
+  throw new Error("Native Git Bash executable was not found on the Windows runner.");
+}
+
+export function shellPath(value, platform = process.platform) {
+  return (platform === "win32" ? win32.resolve(value) : resolve(value)).replaceAll("\\", "/");
+}
+
+export async function main(env = process.env, {
+  platform = process.platform, spawnProcess = spawn, fileExists = existsSync,
+} = {}) {
+  let log;
+  try {
+    validateContext(env);
+    const workspace = env.GITHUB_WORKSPACE;
+    if (!workspace || !env.RUNNER_TEMP) throw new Error("Missing runner directories");
+    const privateOutput = join(env.RUNNER_TEMP, "donut-private");
+    mkdirSync(privateOutput, { recursive: true, mode: 0o700 });
+    log = openSync(join(privateOutput, "build.log"), "a", 0o600);
+    const append = (value) => writeFileSync(log, value);
+    append(`Build controller started: ${platform}\n`);
+    const marker = join(privateOutput, "build-stage.txt");
+    writeFileSync(marker, "runner-setup\n", { mode: 0o600 });
+    const shell = selectBuildShell(env, platform, fileExists);
+    append(`Build shell: ${shell}\n`);
+    console.log("Building on GitHub. Detailed diagnostics are not printed publicly.");
+    const buildEnv = { ...env };
+    delete buildEnv.DONUT_SOURCE_TOKEN;
+    const child = spawnProcess(shell, [shellPath(join(workspace, "builder/ci/build.sh"), platform)], {
+      cwd: workspace,
+      // Stream to disk explicitly; do not buffer compiler output in RAM.
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...buildEnv,
+        DONUT_SOURCE_DIR: shellPath(join(workspace, "private-source"), platform),
+        DONUT_CONTROLLER_DIR: shellPath(join(workspace, "builder"), platform),
+        DONUT_PRIVATE_OUTPUT_DIR: shellPath(privateOutput, platform),
+      },
+    });
+    let startupError;
+    child.stdout?.on("data", append);
+    child.stderr?.on("data", append);
+    const result = await new Promise((complete) => {
+      child.once("error", (error) => {
+        startupError = error;
+        append(`\nProcess startup error: ${error.code ?? "unknown"}: ${error.message}\n`);
+      });
+      child.once("close", (code, signal) => complete({ code, signal }));
+    });
+    append(`\nProcess exit: ${JSON.stringify(result)}\n`);
+    if (startupError || result.code !== 0) {
+      const knownStages = new Set(["runner-setup", "dependencies", "node-tests", "proxy-build",
+        "xray-download", "frontend-build", "rust-tests", "tauri-package", "package-verification"]);
+      const recorded = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
+      const stage = knownStages.has(recorded) ? recorded : "unknown";
+      console.error(`Build failed at ${stage}. Consult build.log in the private diagnostic draft release.`);
+      return 1;
+    }
+    console.log("Build complete. Publishing to the private repository next.");
+    return 0;
+  } catch (error) {
+    if (log !== undefined) writeFileSync(log, `\nController setup error: ${error.code ?? "unknown"}: ${error.message}\n`);
+    console.error("Build controller setup failed; consult private diagnostics. No private details were printed.");
+    return 1;
+  } finally {
+    if (log !== undefined) closeSync(log);
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().then((code) => { process.exitCode = code; }).catch(() => {
+    console.error("Build controller failed; no private details were printed.");
+    process.exitCode = 1;
+  });
 }

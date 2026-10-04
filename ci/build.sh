@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Called only on a disposable GitHub-hosted runner. All output goes to a
 # private diagnostic file via run-build.mjs, never to public Actions logs.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "Build command failed at line %s (exit %s).\n" "$LINENO" "$?" >&2' ERR
 [[ "${GITHUB_ACTIONS:-}" == true ]]
 cd "${DONUT_SOURCE_DIR:?}"
 

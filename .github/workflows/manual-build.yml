@@ -66,6 +66,9 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
+      - name: Check controller bootstrap and private-publishing regressions
+        run: node --test --test-concurrency=1 builder/ci/private-release.test.mjs builder/ci/run-build.test.mjs
+
       - name: Check private destination and scoped token
         id: source_check
         env:

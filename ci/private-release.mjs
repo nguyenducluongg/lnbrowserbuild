@@ -11,6 +11,35 @@ const TARGETS = {
   "linux-x64": "x86_64-unknown-linux-gnu",
 };
 
+export class PrivateReleaseError extends Error {
+  constructor(phase, httpStatus) {
+    super("Private release step failed");
+    this.phase = phase;
+    this.httpStatus = httpStatus;
+  }
+}
+
+export function publicReleaseFailure(error) {
+  const phases = new Set(["repository-check", "release-create", "asset-upload", "release-update", "diagnostic-log"]);
+  if (!(error instanceof PrivateReleaseError) || !phases.has(error.phase)) {
+    return "Private repository step failed. No private diagnostics were printed publicly.";
+  }
+  const status = Number.isInteger(error.httpStatus) && error.httpStatus >= 100 && error.httpStatus <= 599
+    ? ` (HTTP ${error.httpStatus})` : "";
+  return `Private repository step failed at ${error.phase}${status}. Consult the private draft release if created. No private diagnostics were printed publicly.`;
+}
+
+function ensureDiagnosticLog(output) {
+  const log = join(output, "build.log");
+  if (existsSync(log)) {
+    const stat = lstatSync(log);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new PrivateReleaseError("diagnostic-log");
+    if (stat.size > 0) return log;
+  }
+  writeFileSync(log, "No subprocess diagnostics were captured. The build controller may have failed before producing output; inspect runner setup. This placeholder is not a successful build.\n", { mode: 0o600 });
+  return log;
+}
+
 export function validateContext(env) {
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
       env.GITHUB_REPOSITORY !== BUILDER_REPOSITORY ||
@@ -57,7 +86,7 @@ function bundleAssets(directory) {
   return assets;
 }
 
-async function api(token, path, options = {}) {
+async function api(token, path, options = {}, phase = "repository-check") {
   const response = await fetch(`https://api.github.com/repos/${SOURCE_REPOSITORY}${path}`, {
     ...options,
     headers: {
@@ -68,7 +97,7 @@ async function api(token, path, options = {}) {
     },
     signal: AbortSignal.timeout(60_000),
   });
-  if (!response.ok) throw new Error("Private repository API request failed");
+  if (!response.ok) throw new PrivateReleaseError(phase, response.status);
   return response.json();
 }
 
@@ -119,14 +148,17 @@ export async function main(env = process.env) {
       draft: true,
       prerelease: true,
     }),
-  });
+  }, "release-create");
+  // Preserve a useful link even if a later asset upload fails.
+  const releaseLink = release.html_url?.startsWith("https://github.com/nguyenducluongg/donut/releases/")
+    ? release.html_url : "https://github.com/nguyenducluongg/donut/releases";
+  console.log(`Private draft release: ${releaseLink}`);
   const upload = new URL(release.upload_url.split("{")[0]);
   if (upload.protocol !== "https:" || upload.hostname !== "uploads.github.com") {
     throw new Error("Unexpected upload destination");
   }
   const assets = [manifest, ...binaries];
-  const log = join(output, "build.log");
-  if (existsSync(log)) assets.push(log);
+  assets.push(ensureDiagnosticLog(output));
   for (const asset of assets) {
     const stat = lstatSync(asset);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size >= 2 * 1024 ** 3) {
@@ -147,21 +179,21 @@ export async function main(env = process.env) {
       duplex: "half",
       signal: AbortSignal.timeout(15 * 60_000),
     });
-    if (!response.ok) throw new Error("Private artifact upload failed");
+    if (!response.ok) throw new PrivateReleaseError("asset-upload", response.status);
     await response.arrayBuffer();
   }
   if (success) await api(token, `/releases/${release.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ draft: false }),
-  });
-  console.log(`Files saved to ${release.html_url || "https://github.com/nguyenducluongg/donut/releases"} (private).`);
+  }, "release-update");
+  console.log(`Files saved to ${releaseLink} (private).`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch(() => {
+  main().catch((error) => {
     // Never print HTTP bodies, a stack trace, or private compilation output here.
-    console.error("Private repository step failed. Check token permissions, expiry, source ref and repository visibility. No private diagnostics were printed publicly.");
+    console.error(publicReleaseFailure(error));
     process.exitCode = 1;
   });
 }
