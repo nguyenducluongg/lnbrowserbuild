@@ -52,6 +52,15 @@ test("workflow has no automatic triggers, public artifacts, or dependency caches
   assert.match(workflow, /environment: private-source-build/);
 });
 
+test("manual packages preserve Tauri's resource map and verify the macOS Xray license", () => {
+  const override = JSON.parse(readFileSync(new URL("./tauri.ci.json", import.meta.url), "utf8"));
+  assert.equal(override.build.beforeBuildCommand, "");
+  assert.equal(override.bundle, undefined);
+  const build = readFileSync(new URL("./build.sh", import.meta.url), "utf8");
+  assert.match(build, /Contents\/Resources\/licenses\/Xray-core-LICENSE\.txt/);
+  assert.ok(build.indexOf("Contents/Resources/licenses/Xray-core-LICENSE.txt") < build.indexOf("ditto -c -k"));
+});
+
 for (const outcome of ["success", "failure"]) {
   test(`mocked ${outcome} publication keeps files private and selects only expected assets`, async (t) => {
     const scratch = mkdtempSync(join(tmpdir(), "donut-controller-test-"));
@@ -109,6 +118,7 @@ for (const outcome of ["success", "failure"]) {
       const manifest = JSON.parse(readFileSync(join(output, "BUILD-MANIFEST.json"), "utf8"));
       assert.deepEqual(manifest.binaries, outcome === "success" ? ["Donut.dmg"] : []);
       assert.equal(manifest.wayfernIncluded, false);
+      assert.equal(manifest.signing, outcome === "success" ? "ad-hoc; not notarized" : "not-produced");
     } finally {
       t.mock.restoreAll();
       rmSync(scratch, { recursive: true, force: true });

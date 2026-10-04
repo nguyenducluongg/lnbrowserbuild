@@ -39,6 +39,13 @@ and [environment documentation](https://docs.github.com/en/actions/how-tos/deplo
    not from this repo's Actions artifacts. Success produces a private prerelease;
    failure produces a draft with `build.log` and `BUILD-MANIFEST.json` for the owner.
 
+After a source/controller update, start a **new Run workflow**, not a rerun of
+an old failed job. GitHub reruns keep the original event's controller SHA/ref.
+[Rerun semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+Local entry point on the SSD is now
+`/Volumes/SSD/Desktop/vibecoding/donutbrowser/workspace`: `donut/` is private
+source; `lnbrowserbuild/` is this controller. Old lab paths are compatibility links.
+
 [GitHub's manual-run instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
 ## Privacy, build scope, and limits
@@ -55,7 +62,10 @@ and [environment documentation](https://docs.github.com/en/actions/how-tos/deplo
   frontend JS is part of a desktop binary and can be inspected by its recipient.
 - Builds use Node 24, the source's pinned pnpm version, frozen JS/Rust lockfiles,
   one Cargo job, and no cache shared with forks. A clean build can take longer.
-  This workflow has static/unit checks; its first actual build has not been run.
+  The first user-triggered run passed authentication, checkout and private-log
+  publication, then failed a source test that referenced removed upstream release
+  workflows. That test now checks the current Tauri packaging contract; fresh
+  compilation/runtime are still pending. Controller tests pass 9 checks.
 - This builds the **Donut manager**, not the Wayfern browser engine. It does not
   bundle/download/re-patch Wayfern, start browser profiles, or run browser E2E.
   Keep the selected fixed Wayfern binary separately; packaging is not proof of

@@ -105,7 +105,7 @@ export async function main(env = process.env) {
     workflowRun: `https://github.com/${BUILDER_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`,
     binaries: binaries.map((path) => basename(path)),
     wayfernIncluded: false,
-    signing: env.DONUT_BUILD_PLATFORM.startsWith("macos-") ? "ad-hoc; not notarized" : "unsigned",
+    signing: !success ? "not-produced" : env.DONUT_BUILD_PLATFORM.startsWith("macos-") ? "ad-hoc; not notarized" : "unsigned",
   }, null, 2)}\n`, { mode: 0o600 });
 
   const release = await api(token, "/releases", {
@@ -155,7 +155,7 @@ export async function main(env = process.env) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ draft: false }),
   });
-  console.log("Files saved to https://github.com/nguyenducluongg/donut/releases (private).");
+  console.log(`Files saved to ${release.html_url || "https://github.com/nguyenducluongg/donut/releases"} (private).`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

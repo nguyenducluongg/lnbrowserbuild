@@ -5,6 +5,11 @@ set -euo pipefail
 [[ "${GITHUB_ACTIONS:-}" == true ]]
 cd "${DONUT_SOURCE_DIR:?}"
 
+set_stage() {
+  printf '%s\n' "$1" > "${DONUT_PRIVATE_OUTPUT_DIR:?}/build-stage.txt"
+  printf 'Build stage: %s\n' "$1"
+}
+
 case "${DONUT_BUILD_PLATFORM:?}" in
   macos-arm64) build_target=aarch64-apple-darwin; build_bundles=app,dmg ;;
   macos-x64) build_target=x86_64-apple-darwin; build_bundles=app,dmg ;;
@@ -19,6 +24,7 @@ unset CARGO_TARGET_DIR
 export BUILD_TAG="manual-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
 export TARGET="$build_target"
 
+set_stage runner-setup
 if [[ "$DONUT_BUILD_PLATFORM" == linux-x64 ]]; then
   sudo apt-get update
   sudo apt-get install -y --no-install-recommends \
@@ -37,14 +43,17 @@ pnpm_spec="$(node --input-type=module -e '
   if (!/^pnpm@[0-9]+\.[0-9]+\.[0-9]+$/.test(spec)) process.exit(2);
   process.stdout.write(spec);
 ')"
+set_stage dependencies
 npm install --global "$pnpm_spec"
 pnpm install --frozen-lockfile
 
+set_stage node-tests
 node --test src/lib/*.test.mjs scripts/generate-licenses.test.mjs \
   src-tauri/download-xray.test.mjs
 
 # Prepare sidecars explicitly with --locked, instead of executing the original
 # copy hook twice or letting it choose a different Cargo target directory.
+set_stage proxy-build
 cargo build --locked --release --target "$build_target" \
   --manifest-path src-tauri/Cargo.toml --bin donut-proxy
 sidecar_extension=""
@@ -52,8 +61,10 @@ if [[ "$DONUT_BUILD_PLATFORM" == windows-x64 ]]; then sidecar_extension=.exe; fi
 mkdir -p src-tauri/binaries
 cp "src-tauri/target/$build_target/release/donut-proxy$sidecar_extension" \
   "src-tauri/binaries/donut-proxy-$build_target$sidecar_extension"
+set_stage xray-download
 node src-tauri/download-xray.mjs --target "$build_target"
 
+set_stage frontend-build
 pnpm build
 # Refuse the white/empty frontend packaging failure, or source-map shipping.
 test -s dist/index.html
@@ -63,6 +74,7 @@ if [[ -n "$(find dist -type f -name '*.map' -print -quit)" ]]; then
 fi
 
 if [[ "${DONUT_RUN_TESTS:-true}" == true ]]; then
+  set_stage rust-tests
   cargo test --locked --release --target "$build_target" \
     --manifest-path src-tauri/Cargo.toml --lib local_agent -- --test-threads=1
 fi
@@ -71,14 +83,17 @@ fi
 if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
   export APPLE_SIGNING_IDENTITY=-
 fi
+set_stage tauri-package
 pnpm tauri build --ci --target "$build_target" --bundles "$build_bundles" \
   --config "$DONUT_CONTROLLER_DIR/ci/tauri.ci.json" -- --locked
 git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock
 
 if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
+  set_stage package-verification
   found_app=false
   for built_app in "src-tauri/target/$build_target/release/bundle/macos/"*.app; do
     [[ -d "$built_app" ]] || continue
+    test -s "$built_app/Contents/Resources/licenses/Xray-core-LICENSE.txt"
     codesign --verify --deep --strict "$built_app"
     ditto -c -k --sequesterRsrc --keepParent "$built_app" \
       "$DONUT_PRIVATE_OUTPUT_DIR/Donut-$DONUT_BUILD_PLATFORM.app.zip"
@@ -86,3 +101,4 @@ if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
   done
   [[ "$found_app" == true ]]
 fi
+set_stage complete

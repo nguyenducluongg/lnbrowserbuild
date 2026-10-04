@@ -1,4 +1,4 @@
-import { openSync, closeSync, mkdirSync } from "node:fs";
+import { openSync, closeSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { validateContext } from "./private-release.mjs";
@@ -23,7 +23,12 @@ try {
   });
   closeSync(log);
   if (child.error || child.status !== 0) {
-    console.error("Build failed. Consult the diagnostic draft release in the private repository.");
+    const knownStages = new Set(["runner-setup", "dependencies", "node-tests", "proxy-build",
+      "xray-download", "frontend-build", "rust-tests", "tauri-package", "package-verification"]);
+    const marker = join(privateOutput, "build-stage.txt");
+    const recorded = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
+    const stage = knownStages.has(recorded) ? recorded : "unknown";
+    console.error(`Build failed at ${stage}. Consult build.log in the private diagnostic draft release.`);
     process.exitCode = 1;
   } else {
     console.log("Build complete. Publishing to the private repository next.");
