@@ -36,6 +36,9 @@ và [environment docs](https://docs.github.com/en/actions/how-tos/deploy/configu
 
 - Chỉ build manager Donut, không download/embed/repatch/sign Wayfern.
   Không launch browser hoặc thay thế fresh REST/MCP acceptance.
+- `run_tests=true` chạy Rust filters `local_agent` và `local_wayfern` tuần tự.
+  Bản source local-only chặn browser/manager updates nguồn gốc; runtime cần
+  catalog/payload fixed local riêng. Windows/Linux payloads vẫn pending.
 - macOS ad-hoc signed, không notarized; Windows unsigned.
 - Standard hosted runner; Node 24, pinned pnpm, frozen lockfiles, Cargo jobs=1.
   Không build trên Mac local, không self-hosted runner.
@@ -47,7 +50,7 @@ và [environment docs](https://docs.github.com/en/actions/how-tos/deploy/configu
 - [Standard public hosted compute](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
   không larger runners, không cam kết mọi storage/product charge bằng 0.
 
-Lỗi Node test đọc workflow không còn dùng đã sửa. Controller tests: 9 PASS.
+Lỗi Node test đọc workflow không còn dùng đã sửa. Controller tests: 10 PASS.
 Fresh compilation/package/runtime vẫn chờ lượt người dùng tự bấm build.
 Public failure chỉ nêu stage; đọc `build.log` ở private draft để biết lỗi chính xác.
 

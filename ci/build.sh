@@ -77,6 +77,8 @@ if [[ "${DONUT_RUN_TESTS:-true}" == true ]]; then
   set_stage rust-tests
   cargo test --locked --release --target "$build_target" \
     --manifest-path src-tauri/Cargo.toml --lib local_agent -- --test-threads=1
+  cargo test --locked --release --target "$build_target" \
+    --manifest-path src-tauri/Cargo.toml --lib local_wayfern -- --test-threads=1
 fi
 
 # Ad-hoc macOS signing only; no Apple account or certificate is required.

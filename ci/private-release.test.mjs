@@ -61,6 +61,12 @@ test("manual packages preserve Tauri's resource map and verify the macOS Xray li
   assert.ok(build.indexOf("Contents/Resources/licenses/Xray-core-LICENSE.txt") < build.indexOf("ditto -c -k"));
 });
 
+test("manual build includes forced-local Rust regression tests without engine E2E", () => {
+  const build = readFileSync(new URL("./build.sh", import.meta.url), "utf8");
+  assert.match(build, /--lib local_wayfern -- --test-threads=1/);
+  assert.doesNotMatch(build, /pnpm e2e|wayfern\.com|wayfern-local.*curl/);
+});
+
 for (const outcome of ["success", "failure"]) {
   test(`mocked ${outcome} publication keeps files private and selects only expected assets`, async (t) => {
     const scratch = mkdtempSync(join(tmpdir(), "donut-controller-test-"));
