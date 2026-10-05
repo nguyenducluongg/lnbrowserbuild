@@ -50,7 +50,7 @@ pnpm install --frozen-lockfile
 
 set_stage node-tests
 node --test src/lib/*.test.mjs scripts/generate-licenses.test.mjs \
-  src-tauri/download-xray.test.mjs
+  src-tauri/download-xray.test.mjs scripts/internal-terms.test.mjs
 
 # Fail on frontend/type errors before the expensive release sidecar compilation.
 set_stage frontend-build

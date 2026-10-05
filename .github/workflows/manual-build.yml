@@ -16,7 +16,6 @@ run-name: Manual Donut build (${{ inputs.platform }})
         type: choice
         options:
           - macos-arm64
-          - macos-x64
           - windows-x64
           - linux-x64
       run_tests:
@@ -67,7 +66,7 @@ jobs:
           package-manager-cache: false
 
       - name: Check controller bootstrap and private-publishing regressions
-        run: node --test --test-concurrency=1 builder/ci/private-release.test.mjs builder/ci/run-build.test.mjs
+        run: node --test --test-concurrency=1 builder/ci/private-release.test.mjs builder/ci/run-build.test.mjs builder/ci/bundle-engine.test.mjs
 
       - name: Check private destination and scoped token
         id: source_check
@@ -88,6 +87,11 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
+      - name: Check ready native engine pin before compiling
+        env:
+          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
+        run: node builder/ci/bundle-engine.mjs check
+
       - name: Install, test and package (detailed output stays private)
         id: compile
         env:
@@ -96,11 +100,19 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=3072
         run: node builder/ci/run-build.mjs
 
+      - name: Download verified private engine and create all-in-one package
+        id: bundle
+        env:
+          DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
+          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
+          DONUT_SOURCE_SHA: ${{ steps.source.outputs.commit }}
+        run: node builder/ci/bundle-engine.mjs bundle
+
       - name: Save diagnostics and binaries to the private source repository
         if: ${{ always() && !cancelled() && steps.source_check.outcome == 'success' }}
         env:
           DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
           DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
-          DONUT_BUILD_OUTCOME: ${{ steps.compile.outcome }}
+          DONUT_BUILD_OUTCOME: ${{ steps.compile.outcome == 'success' && steps.bundle.outcome == 'success' && 'success' || 'failure' }}
           DONUT_SOURCE_SHA: ${{ steps.source.outputs.commit }}
         run: node builder/ci/private-release.mjs publish

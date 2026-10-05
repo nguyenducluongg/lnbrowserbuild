@@ -1,4 +1,5 @@
-import { createReadStream, existsSync, mkdirSync, readdirSync, lstatSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, lstatSync, writeFileSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -73,19 +74,6 @@ export function isBundleAsset(name) {
   return /\.(dmg|exe|deb|AppImage)$/.test(name);
 }
 
-function bundleAssets(directory) {
-  if (!existsSync(directory)) return [];
-  const assets = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isSymbolicLink()) continue;
-    const path = join(directory, entry.name);
-    // .app is packaged by ditto; do not traverse it or include loose JS/source.
-    if (entry.isDirectory() && !entry.name.endsWith(".app")) assets.push(...bundleAssets(path));
-    else if (entry.isFile() && isBundleAsset(entry.name)) assets.push(path);
-  }
-  return assets;
-}
-
 async function api(token, path, options = {}, phase = "repository-check") {
   const response = await fetch(`https://api.github.com/repos/${SOURCE_REPOSITORY}${path}`, {
     ...options,
@@ -118,12 +106,22 @@ export async function main(env = process.env) {
   const output = join(env.RUNNER_TEMP, "donut-private");
   mkdirSync(output, { recursive: true, mode: 0o700 });
   const success = env.DONUT_BUILD_OUTCOME === "success";
-  const bundle = join(env.GITHUB_WORKSPACE, "private-source/src-tauri/target",
-    TARGETS[env.DONUT_BUILD_PLATFORM], "release/bundle");
-  const binaries = success ? bundleAssets(bundle) : [];
-  const appZip = join(output, `Donut-${env.DONUT_BUILD_PLATFORM}.app.zip`);
-  if (success && existsSync(appZip)) binaries.push(appZip);
-  if (success && !binaries.length) throw new Error("Missing build artifacts");
+  const binaries = [];
+  let combined = null;
+  if (success) {
+    combined = JSON.parse(readFileSync(join(output, "BUNDLE-MANIFEST.json"), "utf8"));
+    const expected = `Donut-${env.DONUT_BUILD_PLATFORM}${env.DONUT_BUILD_PLATFORM === "windows-x64" ? ".zip" : ".tar.gz"}`;
+    if (combined.file !== expected || combined.platform !== env.DONUT_BUILD_PLATFORM ||
+        combined.sourceCommit !== env.DONUT_SOURCE_SHA || !combined.engine?.asset_id ||
+        !/^[a-f0-9]{64}$/.test(combined.sha256)) throw new Error("Invalid combined package manifest");
+    const archive = join(output, expected);
+    const stat = lstatSync(archive);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== combined.size) throw new Error("Invalid combined package");
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(archive)) hash.update(chunk);
+    if (hash.digest("hex") !== combined.sha256) throw new Error("Combined package checksum mismatch");
+    binaries.push(archive);
+  }
   const manifest = join(output, "BUILD-MANIFEST.json");
   writeFileSync(manifest, `${JSON.stringify({
     sourceRepository: SOURCE_REPOSITORY,
@@ -133,7 +131,8 @@ export async function main(env = process.env) {
     buildOutcome: env.DONUT_BUILD_OUTCOME,
     workflowRun: `https://github.com/${BUILDER_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`,
     binaries: binaries.map((path) => basename(path)),
-    wayfernIncluded: false,
+    wayfernIncluded: success,
+    combinedPackage: combined,
     signing: !success ? "not-produced" : env.DONUT_BUILD_PLATFORM.startsWith("macos-") ? "ad-hoc; not notarized" : "unsigned",
   }, null, 2)}\n`, { mode: 0o600 });
 
@@ -144,7 +143,9 @@ export async function main(env = process.env) {
       tag_name: tag,
       target_commitish: /^[a-f0-9]{40}$/.test(env.DONUT_SOURCE_SHA ?? "") ? env.DONUT_SOURCE_SHA : "main",
       name: `${success ? "Build" : "Failed build diagnostics"}: ${tag}`,
-      body: "Manual public-runner build. Source, detailed diagnostics and outputs stay in this private repository. Wayfern is not included. This is not runtime acceptance or a notarized distribution.",
+      body: success
+        ? "Manual public-runner build. Download the single Donut platform archive: manager, verified fixed engine, catalog and storage-relative launcher included. Source and detailed diagnostics stay private. This is not runtime acceptance or a notarized distribution. Read START-HERE.txt after extracting."
+        : "Failed manual build/bundling. Private diagnostics only; no manager-only success package. This is not runtime acceptance.",
       draft: true,
       prerelease: true,
     }),

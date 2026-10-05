@@ -3,6 +3,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { validateContext, validateSourceRef, assertPrivateRepository, releaseTag, isBundleAsset, main, PrivateReleaseError, publicReleaseFailure } from "./private-release.mjs";
 
 const context = {
@@ -91,8 +92,37 @@ test("frontend typecheck and output guards finish before release sidecars are bu
   assert.ok(build.indexOf("set_stage xray-download") < build.indexOf("set_stage tauri-package"));
 });
 
+test("a manager-only build cannot publish an all-in-one success release", async (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), "donut-no-engine-test-"));
+  const command = process.argv[2];
+  try {
+    mkdirSync(join(scratch, "donut-private"));
+    const bundle = join(scratch, "private-source/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg");
+    mkdirSync(bundle, { recursive: true });
+    writeFileSync(join(bundle, "Donut.dmg"), "manager-only");
+    let requests = 0;
+    t.mock.method(globalThis, "fetch", async (_url, options) => {
+      requests++;
+      assert.equal(options.method, undefined);
+      return Response.json({ full_name: "nguyenducluongg/donut", private: true, permissions: { push: true } });
+    });
+    process.argv[2] = "publish";
+    await assert.rejects(main({ ...context, GITHUB_WORKSPACE: scratch, RUNNER_TEMP: scratch,
+      GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: "b".repeat(40),
+      DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "mock-token",
+      DONUT_BUILD_PLATFORM: "macos-arm64", DONUT_BUILD_OUTCOME: "success" }));
+    assert.equal(requests, 1); // privacy check only; no release-create/upload
+  } finally {
+    if (command === undefined) delete process.argv[2]; else process.argv[2] = command;
+    t.mock.restoreAll();
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
 for (const [outcome, platform, diagnostic] of [
   ["success", "macos-arm64", "present"],
+  ["success", "windows-x64", "present"],
+  ["success", "linux-x64", "present"],
   ["failure", "macos-arm64", "present"],
   ["failure", "windows-x64", "empty"],
   ["failure", "windows-x64", "missing"],
@@ -107,6 +137,13 @@ for (const [outcome, platform, diagnostic] of [
       mkdirSync(output);
       writeFileSync(join(bundle, "Donut.dmg"), "binary-fixture");
       writeFileSync(join(bundle, "private-source.zip"), "must-not-upload");
+      const packageBytes = Buffer.from("combined manager-engine-fixture");
+      const packageName = `Donut-${platform}${platform === "windows-x64" ? ".zip" : ".tar.gz"}`;
+      writeFileSync(join(output, packageName), packageBytes);
+      writeFileSync(join(output, "BUNDLE-MANIFEST.json"), JSON.stringify({
+        file: packageName, platform, sourceCommit: "a".repeat(40),
+        size: packageBytes.length, sha256: createHash("sha256").update(packageBytes).digest("hex"), engine: { asset_id: 42 },
+      }));
       if (diagnostic !== "missing") {
         writeFileSync(join(output, "build.log"), diagnostic === "empty" ? "" : "synthetic-private-diagnostic");
       }
@@ -160,15 +197,15 @@ for (const [outcome, platform, diagnostic] of [
       assert.equal(created.draft, true);
       assert.ok(messages.some(message => message.startsWith("Private draft release:")));
       assert.deepEqual(uploads, outcome === "success"
-        ? ["BUILD-MANIFEST.json", "Donut.dmg", "build.log"]
+        ? ["BUILD-MANIFEST.json", packageName, "build.log"]
         : ["BUILD-MANIFEST.json", "build.log"]);
       assert.deepEqual(updates, outcome === "success" ? [{ draft: false }] : []);
       assert.ok(messages.every((message) => !message.includes("synthetic-private-diagnostic") &&
         !message.includes("synthetic-private-server-body") && !message.includes("mock-token")));
       const manifest = JSON.parse(readFileSync(join(output, "BUILD-MANIFEST.json"), "utf8"));
-      assert.deepEqual(manifest.binaries, outcome === "success" ? ["Donut.dmg"] : []);
-      assert.equal(manifest.wayfernIncluded, false);
-      assert.equal(manifest.signing, outcome === "success" ? "ad-hoc; not notarized" : "not-produced");
+      assert.deepEqual(manifest.binaries, outcome === "success" ? [packageName] : []);
+      assert.equal(manifest.wayfernIncluded, outcome === "success");
+      assert.equal(manifest.signing, outcome !== "success" ? "not-produced" : platform.startsWith("macos-") ? "ad-hoc; not notarized" : "unsigned");
     } finally {
       t.mock.restoreAll();
       rmSync(scratch, { recursive: true, force: true });
