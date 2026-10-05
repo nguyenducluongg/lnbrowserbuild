@@ -48,7 +48,9 @@ def extract_engine(archive, destination, root_name):
         if shutil.disk_usage(destination).free < expanded + Path(archive).stat().st_size + 512 * 1024 ** 2:
             raise ValueError("Insufficient runner disk for extraction and combined package")
         for entry in entries:
-            parts = safe_name(entry.filename)
+            # ZipInfo normalizes backslashes on Windows; validate the raw name
+            # so an unsafe member cannot become a seemingly safe path first.
+            parts = safe_name(entry.orig_filename)
             if entry.flag_bits & 1:
                 raise ValueError("Encrypted archive entry")
             if parts[0] == "__MACOSX" or parts == [".DS_Store"]:

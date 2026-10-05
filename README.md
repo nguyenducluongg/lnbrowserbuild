@@ -99,7 +99,16 @@ Third-party tools/GitHub Actions giữ giấy phép riêng.
 
 Kiểm tra nhẹ: `node --max-old-space-size=256 --test --test-concurrency=1
 ci/private-release.test.mjs ci/run-build.test.mjs ci/bundle-engine.test.mjs`.
-Ngày 2026-10-06: **35 Node PASS**, gồm wrapper chạy **9 Python PASS** với ZIP
+Ngày 2026-10-06 sau sửa Windows fixture: **35 Node PASS trên Mac**, gồm wrapper
+chạy **11 Python PASS** với ZIP
 giả lập nhỏ. Không tải engine thật/build app/launch browser; native package và
 runtime vẫn chờ lượt build thủ công của người dùng. Đặt TMPDIR ở storage được
 phép trên máy test (SSD ngoài ở lab Mac).
+
+Windows run lúc 18:59 UTC ngày 2026-10-05 với controller `4b9c99e` dừng ở
+bootstrap tests: 34/35 Node PASS, Python có 2 FAIL/1 ERROR do kỳ vọng Unix
+symlinks và normalization của ZIP fixture. Chưa checkout source private,
+compile manager hoặc tải engine. Đã tách regular-file/hash coverage khỏi
+symlink policy native, giữ kiểm tra từ chối symlink trên Windows và kiểm tra
+tên ZIP gốc trước normalization. Không tắt checksum/tests; Linux archive case
+vẫn chỉ chạy Unix như trước. Native Windows retest chờ Run workflow mới.

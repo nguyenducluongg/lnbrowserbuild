@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import stat
 import tarfile
@@ -15,6 +16,10 @@ def make_zip(path, entries):
     with zipfile.ZipFile(path, "x") as zipped:
         for name, data, mode in entries:
             entry = zipfile.ZipInfo(name)
+            # Preserve deliberately malformed names instead of letting the
+            # host's ZipInfo constructor normalize the negative fixture.
+            entry.filename = name
+            entry.orig_filename = name
             entry.create_system = 3
             entry.external_attr = mode << 16
             zipped.writestr(entry, data)
@@ -33,13 +38,13 @@ class PackagingTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_modes_symlinks_and_metadata(self):
+    def test_files_metadata_and_hashes(self):
         make_zip(self.archive, [("Wayfern/chrome", b"engine", FILE),
-                                ("Wayfern/Current", b"chrome", LINK),
                                 ("__MACOSX/._Wayfern", b"metadata", stat.S_IFREG | 0o644)])
         engine = extract_engine(self.archive, self.root / "extract", "Wayfern")
-        self.assertTrue((engine / "Current").is_symlink())
-        self.assertEqual((engine / "chrome").stat().st_mode & 0o777, 0o755)
+        self.assertEqual((engine / "chrome").read_bytes(), b"engine")
+        if os.name != "nt":
+            self.assertEqual((engine / "chrome").stat().st_mode & 0o777, 0o755)
         self.assertFalse((self.root / "extract/__MACOSX").exists())
         slot = {"executable": "chrome", "integrity": [{"path": "chrome", "sha256": digest(engine / "chrome")}]}
         verify_engine(engine, slot)
@@ -47,18 +52,43 @@ class PackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
             verify_engine(engine, slot)
 
+    def test_native_symlink_policy(self):
+        make_zip(self.archive, [("Wayfern/chrome", b"engine", FILE), ("Wayfern/Current", b"chrome", LINK)])
+        if os.name == "nt":
+            # Windows engine ZIPs must contain real files, not Unix symlinks.
+            with self.assertRaisesRegex(ValueError, "Unsupported archive symlink"):
+                extract_engine(self.archive, self.root / "extract", "Wayfern")
+        else:
+            engine = extract_engine(self.archive, self.root / "extract", "Wayfern")
+            self.assertTrue((engine / "Current").is_symlink())
+            self.assertEqual((engine / "Current").read_bytes(), b"engine")
+
     def test_unsafe_archive_names(self):
         for index, name in enumerate(["../outside", "/Wayfern/file", "Wayfern/../bad", "Wayfern\\bad",
                                       "Wayfern/C:bad", "Wayfern//bad", "Other/file"]):
             archive = self.root / f"bad-{index}.zip"
             make_zip(archive, [(name, b"bad", FILE)])
-            with self.assertRaises(ValueError):
+            with self.subTest(name=name), self.assertRaises(ValueError):
                 extract_engine(archive, self.root / f"extract-{index}", "Wayfern")
         self.assertFalse((self.root / "outside").exists())
 
+    def test_raw_name_checked_before_windows_normalization(self):
+        name = "Wayfern\\bad"
+        make_zip(self.archive, [(name, b"bad", FILE)])
+        with zipfile.ZipFile(self.archive) as zipped:
+            self.assertEqual(zipped.infolist()[0].orig_filename, name)
+        # Emulate just the ZipInfo reader's normalization, not the filesystem OS.
+        class NormalizedZipInfo(zipfile.ZipInfo):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.filename = self.filename.replace("\\", "/")
+        with patch("zipfile.ZipInfo", NormalizedZipInfo), self.assertRaisesRegex(ValueError, "Unsafe archive path"):
+            extract_engine(self.archive, self.root / "extract", "Wayfern")
+
     def test_escaping_symlink(self):
         make_zip(self.archive, [("Wayfern/chrome", b"engine", FILE), ("Wayfern/link", b"../../outside", LINK)])
-        with self.assertRaisesRegex(ValueError, "escapes"):
+        expected = "Unsupported archive symlink" if os.name == "nt" else "escapes"
+        with self.assertRaisesRegex(ValueError, expected):
             extract_engine(self.archive, self.root / "extract", "Wayfern")
 
     def test_duplicate_path(self):
@@ -105,7 +135,7 @@ class PackagingTests(unittest.TestCase):
         return source, output
 
     def test_linux_combined_archive(self):
-        if stat.S_IFLNK == 0 or __import__("os").name == "nt":
+        if os.name == "nt":
             self.skipTest("Unix symlinks tested on native Unix runners")
         source, output = self.fixture("linux-x64")
         package(source, output, "linux-x64", self.archive)
