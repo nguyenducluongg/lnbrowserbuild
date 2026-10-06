@@ -66,9 +66,11 @@ test("Python synthetic archive/package regressions run without dependencies or b
   assert.equal(result.status, 0, result.stderr || result.error?.message);
 });
 
-test("workflow success requires compilation AND private engine bundling", () => {
+test("workflow success requires compilation AND the selected package mode", () => {
   const workflow = readFileSync(new URL("../.github/workflows/manual-build.yml", import.meta.url), "utf8");
-  assert.match(workflow, /steps\.compile\.outcome == 'success' && steps\.bundle\.outcome == 'success'/);
+  assert.match(workflow, /steps\.compile\.outcome == 'success' && \(steps\.bundle\.outcome == 'success' \|\| steps\.manager\.outcome == 'success'\)/);
+  assert.match(workflow, /id: bundle\s+if: \$\{\{ inputs\.bundle_engine \}\}/);
+  assert.match(workflow, /id: manager\s+if: \$\{\{ !inputs\.bundle_engine \}\}/);
   assert.match(workflow, /bundle-engine\.mjs check/);
   assert.match(workflow, /bundle-engine\.mjs bundle/);
   assert.doesNotMatch(workflow, /^\s+- macos-x64$/m);

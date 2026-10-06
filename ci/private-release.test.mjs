@@ -119,6 +119,49 @@ test("a manager-only build cannot publish an all-in-one success release", async 
   }
 });
 
+test("explicit manager-only success uploads verified native installers and no engine", async (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), "donut-manager-publish-test-"));
+  const command = process.argv[2];
+  try {
+    const output = join(scratch, "donut-private");
+    mkdirSync(output);
+    const bytes = Buffer.from("native-manager-fixture");
+    writeFileSync(join(output, "Donut.exe"), bytes);
+    writeFileSync(join(output, "MANAGER-MANIFEST.json"), JSON.stringify({ mode: "manager-only", platform: "windows-x64",
+      sourceCommit: "a".repeat(40), version: "0.31.2", revision: 2,
+      assets: [{ file: "Donut.exe", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }] }));
+    const uploaded = [];
+    t.mock.method(globalThis, "fetch", async (requestUrl, options) => {
+      const url = new URL(requestUrl);
+      if (url.hostname === "uploads.github.com") {
+        uploaded.push(url.searchParams.get("name"));
+        for await (const _chunk of options.body) { /* drain synthetic upload */ }
+        return new Response("{}", { status: 201 });
+      }
+      if (options.method === "POST") {
+        assert.match(JSON.parse(options.body).body, /manager-only/);
+        return Response.json({ id: 3, html_url: "https://github.com/nguyenducluongg/donut/releases/tag/test",
+          upload_url: "https://uploads.github.com/repos/nguyenducluongg/donut/releases/3/assets{?name}" });
+      }
+      if (options.method === "PATCH") return Response.json({});
+      return Response.json({ full_name: "nguyenducluongg/donut", private: true, permissions: { push: true } });
+    });
+    process.argv[2] = "publish";
+    await main({ ...context, RUNNER_TEMP: scratch, DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "synthetic-token",
+      DONUT_BUILD_PLATFORM: "windows-x64", DONUT_BUILD_OUTCOME: "success", DONUT_BUNDLE_ENGINE: "false", DONUT_APP_REVISION: "2",
+      GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1" });
+    assert.deepEqual(uploaded.sort(), ["BUILD-MANIFEST.json", "DONUT-UPDATE.json", "Donut.exe", "MANAGER-MANIFEST.json", "build.log"].sort());
+    assert.ok(!uploaded.some(name => name.includes("Wayfern") || name.endsWith(".zip")));
+    const build = JSON.parse(readFileSync(join(output, "BUILD-MANIFEST.json"), "utf8"));
+    assert.equal(build.wayfernIncluded, false);
+    assert.equal(build.managerPackage.revision, 2);
+  } finally {
+    if (command === undefined) delete process.argv[2]; else process.argv[2] = command;
+    t.mock.restoreAll();
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
 for (const [outcome, platform, diagnostic] of [
   ["success", "macos-arm64", "present"],
   ["success", "windows-x64", "present"],
