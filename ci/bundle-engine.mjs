@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateContext, assertPrivateRepository } from "./private-release.mjs";
 
-const REPO = "nguyenducluongg/donut";
+const REPO = "nguyenducluongg/lnlogin";
 const API = `https://api.github.com/repos/${REPO}`;
 export function selectPin(pins, catalog, platform) {
   const pin = pins.platforms?.[platform];
@@ -76,25 +76,25 @@ export async function main(env = process.env) {
   const source = join(env.GITHUB_WORKSPACE, "private-source");
   const pins = JSON.parse(readFileSync(join(source, "binary/release-assets.json"), "utf8"));
   const catalog = JSON.parse(readFileSync(join(source, "binary/wayfern-local.json"), "utf8"));
-  const pin = selectPin(pins, catalog, env.DONUT_BUILD_PLATFORM);
+  const pin = selectPin(pins, catalog, env.LNLOGIN_BUILD_PLATFORM);
   if (process.argv[2] === "check") {
     console.log("Ready native engine pin and catalog found.");
     return;
   }
-  if (process.argv[2] !== "bundle" || !env.DONUT_SOURCE_TOKEN) throw new Error("Invalid bundling command");
-  const output = join(env.RUNNER_TEMP, "donut-private");
+  if (process.argv[2] !== "bundle" || !env.LNLOGIN_SOURCE_TOKEN) throw new Error("Invalid bundling command");
+  const output = join(env.RUNNER_TEMP, "lnlogin-private");
   mkdirSync(output, { recursive: true, mode: 0o700 });
   const log = openSync(join(output, "build.log"), "a", 0o600);
   try {
-    assertPrivateRepository(await metadata(env.DONUT_SOURCE_TOKEN, "", fetch));
+    assertPrivateRepository(await metadata(env.LNLOGIN_SOURCE_TOKEN, "", fetch));
     writeFileSync(log, "\nBundling pinned private engine; verifying ZIP then catalog hashes.\n");
     const zip = join(output, "engine-input.zip");
-    await downloadEngine(env.DONUT_SOURCE_TOKEN, pin, zip);
+    await downloadEngine(env.LNLOGIN_SOURCE_TOKEN, pin, zip);
     const childEnv = { ...env };
-    delete childEnv.DONUT_SOURCE_TOKEN;
+    delete childEnv.LNLOGIN_SOURCE_TOKEN;
     const python = process.platform === "win32" ? "python" : "python3";
     const child = spawn(python, [join(env.GITHUB_WORKSPACE, "builder/ci/package_bundle.py"),
-      "--source", source, "--output", output, "--platform", env.DONUT_BUILD_PLATFORM,
+      "--source", source, "--output", output, "--platform", env.LNLOGIN_BUILD_PLATFORM,
       "--zip", zip], { env: childEnv, stdio: ["ignore", log, log] });
     const code = await new Promise((done, reject) => {
       child.once("error", reject);

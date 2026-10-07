@@ -12,7 +12,7 @@ const bytes = Buffer.from("tiny pinned engine zip fixture");
 const pin = { asset_id: 42, tag: "Binary-Test", name: "Wayfern.zip", size: bytes.length,
   sha256: createHash("sha256").update(bytes).digest("hex"), archive_root: "Wayfern" };
 test("engine pin requires a ready matching native catalog, not fallback/other architecture", () => {
-  const pins = { schema_version: 1, repository: "nguyenducluongg/donut", platforms: { "linux-x64": pin } };
+  const pins = { schema_version: 1, repository: "nguyenducluongg/lnlogin", platforms: { "linux-x64": pin } };
   const catalog = { schema_version: 1, policy: "local-fixed-only", platforms: { "linux-x64": {
     status: "ready", install_dir: "linux-x64/Wayfern", integrity: [{ path: "chrome", sha256: pin.sha256 }] } } };
   assert.deepEqual(selectPin(pins, catalog, "linux-x64"), pin);

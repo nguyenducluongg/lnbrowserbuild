@@ -119,13 +119,13 @@ def verify_engine(engine, slot):
         raise ValueError("Engine executable bit missing")
 
 
-COMMON_ENV = '''export DONUTBROWSER_BINARY_ROOT="$root/binary"
-export DONUTBROWSER_DATA_ROOT="$root/.runtime"
-export DONUT_INTERNAL_MODE=1
+COMMON_ENV = '''export LNLOGIN_BINARY_ROOT="$root/binary"
+export LNLOGIN_DATA_ROOT="$root/.runtime"
+export LNLOGIN_INTERNAL_MODE=1
 export TMPDIR="$root/.runtime/tmp"
 export TMP="$TMPDIR" TEMP="$TMPDIR"
-unset DONUTBROWSER_WAYFERN_APP DONUTBROWSER_WAYFERN_PATH
-unset DONUTBROWSER_DATA_DIR DONUTBROWSER_CACHE_DIR
+unset LNLOGIN_WAYFERN_APP LNLOGIN_WAYFERN_PATH
+unset LNLOGIN_DATA_DIR LNLOGIN_CACHE_DIR
 mkdir -p "$TMPDIR"
 cd "$root"
 '''
@@ -156,22 +156,22 @@ if (-not $ManagerPath) {
   foreach ($key in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
                      'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
     Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'LNLogin' -and $_.InstallLocation } | ForEach-Object {
-      $candidates += Join-Path $_.InstallLocation 'donutbrowser.exe'
+      $candidates += Join-Path $_.InstallLocation 'lnlogin.exe'
     }
   }
-  $candidates += Join-Path $env:LOCALAPPDATA 'LNLogin\donutbrowser.exe'
+  $candidates += Join-Path $env:LOCALAPPDATA 'LNLogin\lnlogin.exe'
   $ManagerPath = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 }
 if (-not $ManagerPath -or -not (Test-Path -LiteralPath $ManagerPath -PathType Leaf)) {
-  throw 'Install manager\LNLogin-setup.exe first. If needed: .\Start-LNLogin.ps1 -ManagerPath "D:\Apps\LNLogin\donutbrowser.exe" (use your actual path).'
+  throw 'Install manager\LNLogin-setup.exe first. If needed: .\Start-LNLogin.ps1 -ManagerPath "D:\Apps\LNLogin\lnlogin.exe" (use your actual path).'
 }
-$env:DONUTBROWSER_BINARY_ROOT = Join-Path $root 'binary'
-$env:DONUTBROWSER_DATA_ROOT = Join-Path $root '.runtime'
-$env:DONUT_INTERNAL_MODE = '1'
+$env:LNLOGIN_BINARY_ROOT = Join-Path $root 'binary'
+$env:LNLOGIN_DATA_ROOT = Join-Path $root '.runtime'
+$env:LNLOGIN_INTERNAL_MODE = '1'
 $env:TEMP = Join-Path $root '.runtime\tmp'
 $env:TMP = $env:TEMP
 New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
-foreach ($name in @('DONUTBROWSER_WAYFERN_APP','DONUTBROWSER_WAYFERN_PATH','DONUTBROWSER_DATA_DIR','DONUTBROWSER_CACHE_DIR')) {
+foreach ($name in @('LNLOGIN_WAYFERN_APP','LNLOGIN_WAYFERN_PATH','LNLOGIN_DATA_DIR','LNLOGIN_CACHE_DIR')) {
   [Environment]::SetEnvironmentVariable($name, $null, 'Process')
 }
 Set-Location -LiteralPath $root
@@ -180,27 +180,27 @@ Start-Process -FilePath $ManagerPath -WorkingDirectory $root
         (root / "Start-LNLogin.ps1").write_text(script, encoding="utf-8")
         cmd = r'''@echo off
 setlocal
-set "donut_manager=%~1"
-if not defined donut_manager if exist "%LOCALAPPDATA%\LNLogin\donutbrowser.exe" set "donut_manager=%LOCALAPPDATA%\LNLogin\donutbrowser.exe"
-if not defined donut_manager if exist "%ProgramFiles%\LNLogin\donutbrowser.exe" set "donut_manager=%ProgramFiles%\LNLogin\donutbrowser.exe"
-if not defined donut_manager if exist "%ProgramFiles%\LNLogin\donutbrowser.exe" set "donut_manager=%ProgramFiles%\LNLogin\donutbrowser.exe"
-if not defined donut_manager goto missing
-if not exist "%donut_manager%" goto missing
-set "DONUTBROWSER_BINARY_ROOT=%~dp0binary"
-set "DONUTBROWSER_DATA_ROOT=%~dp0.runtime"
-set "DONUT_INTERNAL_MODE=1"
+set "lnlogin_manager=%~1"
+if not defined lnlogin_manager if exist "%LOCALAPPDATA%\LNLogin\lnlogin.exe" set "lnlogin_manager=%LOCALAPPDATA%\LNLogin\lnlogin.exe"
+if not defined lnlogin_manager if exist "%ProgramFiles%\LNLogin\lnlogin.exe" set "lnlogin_manager=%ProgramFiles%\LNLogin\lnlogin.exe"
+if not defined lnlogin_manager if exist "%ProgramFiles%\LNLogin\lnlogin.exe" set "lnlogin_manager=%ProgramFiles%\LNLogin\lnlogin.exe"
+if not defined lnlogin_manager goto missing
+if not exist "%lnlogin_manager%" goto missing
+set "LNLOGIN_BINARY_ROOT=%~dp0binary"
+set "LNLOGIN_DATA_ROOT=%~dp0.runtime"
+set "LNLOGIN_INTERNAL_MODE=1"
 set "TEMP=%~dp0.runtime\tmp"
 set "TMP=%TEMP%"
-set "DONUTBROWSER_WAYFERN_APP="
-set "DONUTBROWSER_WAYFERN_PATH="
-set "DONUTBROWSER_DATA_DIR="
-set "DONUTBROWSER_CACHE_DIR="
+set "LNLOGIN_WAYFERN_APP="
+set "LNLOGIN_WAYFERN_PATH="
+set "LNLOGIN_DATA_DIR="
+set "LNLOGIN_CACHE_DIR="
 if not exist "%TEMP%" mkdir "%TEMP%"
 if not exist "%TEMP%" exit /b 1
-start "" /D "%~dp0" "%donut_manager%"
+start "" /D "%~dp0" "%lnlogin_manager%"
 exit /b 0
 :missing
-echo Install manager\LNLogin-setup.exe first. Custom path: Start-LNLogin.cmd "your-installed-donutbrowser.exe"
+echo Install manager\LNLogin-setup.exe first. Custom path: Start-LNLogin.cmd "your-installed-lnlogin.exe"
 pause
 exit /b 1
 '''
@@ -210,10 +210,10 @@ exit /b 1
         prefix = '#!/usr/bin/env bash\nset -euo pipefail\nroot="$(cd -- "$(dirname -- "$0")" && pwd -P)"\n'
         if platform.startswith("macos-"):
             name = "Start-LNLogin.command"
-            script = prefix + COMMON_ENV + 'exec "$root/LNLogin.app/Contents/MacOS/donutbrowser" "$@"\n'
+            script = prefix + COMMON_ENV + 'exec "$root/LNLogin.app/Contents/MacOS/lnlogin" "$@"\n'
             instructions += "macOS: open Start-LNLogin.command. Manager is ad-hoc signed, not notarized;\nGatekeeper may need user approval. The launcher does not remove quarantine.\n"
         else:
-            name = "start-donut.sh"
+            name = "start-lnlogin.sh"
             script = prefix + COMMON_ENV + '''export XDG_CACHE_HOME="$root/.runtime/xdg-cache"
 export XDG_CONFIG_HOME="$root/.runtime/xdg-config"
 export XDG_DATA_HOME="$root/.runtime/xdg-data"
@@ -223,7 +223,7 @@ if [[ -z "${DISPLAY:-}" ]]; then
 fi
 exec "$root/manager/LNLogin.AppImage" "$@"
 '''
-            instructions += "Linux: use ./start-donut.sh with an existing DISPLAY (real X11 or Xvfb).\nThis is still a Tauri manager, not a display-free daemon. No GUI/VNC setup,\nAPI token/settings or services are auto-created. Enable the local API through\nyour existing configuration/setup; keep loopback/bearer auth. API use only\ndoes not require viewing the GUI, but this build requires a display backend.\nAppImage needs host libraries/FUSE; if FUSE is unavailable, the AppImage\nruntime's APPIMAGE_EXTRACT_AND_RUN=1 can be supplied with temp on .runtime.\n"
+            instructions += "Linux: use ./start-lnlogin.sh with an existing DISPLAY (real X11 or Xvfb).\nThis is still a Tauri manager, not a display-free daemon. No GUI/VNC setup,\nAPI token/settings or services are auto-created. Enable the local API through\nyour existing configuration/setup; keep loopback/bearer auth. API use only\ndoes not require viewing the GUI, but this build requires a display backend.\nAppImage needs host libraries/FUSE; if FUSE is unavailable, the AppImage\nruntime's APPIMAGE_EXTRACT_AND_RUN=1 can be supplied with temp on .runtime.\n"
         (root / name).write_text(script, encoding="utf-8")
         (root / name).chmod(0o755)
     (root / "START-HERE.txt").write_text(instructions, encoding="utf-8")
@@ -266,7 +266,7 @@ def package(source, output, platform, engine_zip):
         verify_engine(engine, slot)
         if platform.startswith("macos-"):
             app = unique((built / "macos").glob("*.app"), "manager .app")
-            if not (app / "Contents/MacOS/donutbrowser").is_file():
+            if not (app / "Contents/MacOS/lnlogin").is_file():
                 raise ValueError("Manager executable not found")
             subprocess.run(["codesign", "--verify", "--deep", "--strict", str(engine)], check=True)
             shutil.copytree(app, root / "LNLogin.app", symlinks=True)
@@ -285,7 +285,7 @@ def package(source, output, platform, engine_zip):
                 shutil.copy2(deb, manager / deb.name)
         write_launchers(root, platform)
         provenance = {"schema_version": 1, "platform": platform,
-                      "sourceCommit": os.environ.get("DONUT_SOURCE_SHA"),
+                      "sourceCommit": os.environ.get("LNLOGIN_SOURCE_SHA"),
                       "controllerCommit": os.environ.get("GITHUB_SHA"),
                       "engine": pin, "catalogSha256": digest(catalog_path),
                       "integrity": slot["integrity"], "runtimeAcceptance": False}

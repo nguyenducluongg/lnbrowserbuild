@@ -37,9 +37,9 @@ test("POSIX shell paths preserve literal backslashes instead of treating them as
 });
 
 function fixture(t) {
-  const directory = mkdtempSync(join(tmpdir(), "donut-runner-test-"));
+  const directory = mkdtempSync(join(tmpdir(), "lnlogin-runner-test-"));
   const env = { ...process.env, ...context, GITHUB_WORKSPACE: directory, RUNNER_TEMP: directory,
-    DONUT_SOURCE_TOKEN: "mock-private-token" };
+    LNLOGIN_SOURCE_TOKEN: "mock-private-token" };
   const messages = [];
   t.mock.method(console, "log", value => messages.push(value));
   t.mock.method(console, "error", value => messages.push(value));
@@ -47,7 +47,7 @@ function fixture(t) {
     t.mock.restoreAll();
     rmSync(directory, { recursive: true, force: true });
   });
-  return { directory, env, messages, log: () => readFileSync(join(directory, "donut-private/build.log"), "utf8") };
+  return { directory, env, messages, log: () => readFileSync(join(directory, "lnlogin-private/build.log"), "utf8") };
 }
 
 function fakeProcess(run) {
@@ -61,7 +61,7 @@ function fakeProcess(run) {
 test("startup errors are saved privately even when the shell produces no stdout", async t => {
   const f = fixture(t);
   const code = await main(f.env, { spawnProcess: (command, args, options) => {
-    assert.equal(options.env.DONUT_SOURCE_TOKEN, undefined);
+    assert.equal(options.env.LNLOGIN_SOURCE_TOKEN, undefined);
     assert.deepEqual(options.stdio, ["ignore", "pipe", "pipe"]);
     return fakeProcess(child => {
       child.emit("error", Object.assign(new Error("synthetic-private-startup-detail"), { code: "ENOENT" }));
@@ -90,7 +90,7 @@ test("stdout and stderr over 1 MiB stream to disk without entering public output
     const chunk = Buffer.alloc(65536, "x");
     for (let index = 0; index < 20; index++) child.stdout.write(chunk);
     child.stderr.write("synthetic-private-stderr\n");
-    writeFileSync(join(f.directory, "donut-private/build-stage.txt"), "frontend-build\n");
+    writeFileSync(join(f.directory, "lnlogin-private/build-stage.txt"), "frontend-build\n");
     child.emit("close", 7, null);
   }) });
   assert.equal(code, 1);
@@ -106,7 +106,7 @@ test("native shell smoke uses only a tiny fixture, capturing both streams and ex
   const f = fixture(t);
   const scripts = join(f.directory, "builder/ci");
   mkdirSync(scripts, { recursive: true });
-  writeFileSync(join(scripts, "build.sh"), 'printf "synthetic-private-stdout\\n"\nprintf "synthetic-private-stderr\\n" >&2\nprintf "node-tests\\n" > "$DONUT_PRIVATE_OUTPUT_DIR/build-stage.txt"\nexit 9\n');
+  writeFileSync(join(scripts, "build.sh"), 'printf "synthetic-private-stdout\\n"\nprintf "synthetic-private-stderr\\n" >&2\nprintf "node-tests\\n" > "$LNLOGIN_PRIVATE_OUTPUT_DIR/build-stage.txt"\nexit 9\n');
   assert.equal(await main(f.env), 1);
   assert.match(f.log(), /synthetic-private-stdout/);
   assert.match(f.log(), /synthetic-private-stderr/);

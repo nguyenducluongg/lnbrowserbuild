@@ -30,18 +30,18 @@ export function updateMetadata(manager) {
   }) };
 }
 export async function packageManager(env) {
-  const target = targets[env.DONUT_BUILD_PLATFORM];
-  if (env.GITHUB_ACTIONS !== "true" || !target || !/^[a-f0-9]{40}$/.test(env.DONUT_SOURCE_SHA ?? "")) throw new Error("Invalid manager packaging context");
-  const revision = Number(env.DONUT_APP_REVISION ?? 1);
+  const target = targets[env.LNLOGIN_BUILD_PLATFORM];
+  if (env.GITHUB_ACTIONS !== "true" || !target || !/^[a-f0-9]{40}$/.test(env.LNLOGIN_SOURCE_SHA ?? "")) throw new Error("Invalid manager packaging context");
+  const revision = Number(env.LNLOGIN_APP_REVISION ?? 1);
   if (!Number.isInteger(revision) || revision < 1 || revision > 1000000) throw new Error("Invalid app revision");
   const root = join(env.GITHUB_WORKSPACE, "private-source/src-tauri/target", target, "release/bundle");
-  const output = join(env.RUNNER_TEMP, "donut-private");
+  const output = join(env.RUNNER_TEMP, "lnlogin-private");
   mkdirSync(output, { recursive: true, mode: 0o700 });
   const assets = [];
   for (const format of readdirSync(root, { withFileTypes: true })) {
     if (!format.isDirectory()) continue;
     for (const filename of readdirSync(join(root, format.name))) {
-      if (!nativeAsset(env.DONUT_BUILD_PLATFORM, filename)) continue;
+      if (!nativeAsset(env.LNLOGIN_BUILD_PLATFORM, filename)) continue;
       const source = join(root, format.name, filename);
       const stat = lstatSync(source);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0 || stat.size >= 2 * 1024 ** 3) throw new Error("Invalid native installer");
@@ -54,10 +54,10 @@ export async function packageManager(env) {
   }
   if (!assets.length) throw new Error("No native manager installers");
   const sourcePackage = JSON.parse((await import("node:fs")).readFileSync(join(env.GITHUB_WORKSPACE, "private-source/package.json"), "utf8"));
-  const manifest = { mode: "manager-only", platform: env.DONUT_BUILD_PLATFORM,
-    sourceCommit: env.DONUT_SOURCE_SHA, version: sourcePackage.version, revision, assets };
+  const manifest = { mode: "manager-only", platform: env.LNLOGIN_BUILD_PLATFORM,
+    sourceCommit: env.LNLOGIN_SOURCE_SHA, version: sourcePackage.version, revision, assets };
   writeFileSync(join(output, "MANAGER-MANIFEST.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
-  writeFileSync(join(output, "DONUT-UPDATE.json"), `${JSON.stringify(updateMetadata(manifest), null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(join(output, "LNLOGIN-UPDATE.json"), `${JSON.stringify(updateMetadata(manifest), null, 2)}\n`, { mode: 0o600 });
   return manifest;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

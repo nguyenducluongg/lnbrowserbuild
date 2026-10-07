@@ -129,9 +129,9 @@ class PackagingTests(unittest.TestCase):
             (bundle / "nsis/setup.exe").write_bytes(b"installer fixture")
         else:
             (bundle / "appimage").mkdir(parents=True)
-            (bundle / "appimage/donut.AppImage").write_bytes(b"AppImage fixture")
+            (bundle / "appimage/lnlogin.AppImage").write_bytes(b"AppImage fixture")
             (bundle / "deb").mkdir()
-            (bundle / "deb/donut.deb").write_bytes(b"deb fixture")
+            (bundle / "deb/lnlogin.deb").write_bytes(b"deb fixture")
         return source, output
 
     def test_linux_combined_archive(self):
@@ -145,7 +145,7 @@ class PackagingTests(unittest.TestCase):
         with tarfile.open(output / manifest["file"]) as tar:
             prefix = "LNLogin-linux-x64/"
             self.assertTrue(tar.getmember(prefix + "binary/linux-x64/Wayfern/Current").issym())
-            self.assertEqual(tar.getmember(prefix + "start-donut.sh").mode & 0o777, 0o755)
+            self.assertEqual(tar.getmember(prefix + "start-lnlogin.sh").mode & 0o777, 0o755)
             for name in ["manager/LNLogin.AppImage", "binary/wayfern-local.json", "START-HERE.txt", "PACKAGE-MANIFEST.json"]:
                 self.assertIsNotNone(tar.getmember(prefix + name))
         self.assertEqual(list(output.glob("bundle-*")), [])

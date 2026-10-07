@@ -6,31 +6,31 @@ import test from "node:test";
 import { nativeAsset, packageManager, updateMetadata } from "./package-manager.mjs";
 
 test("manager publication selects only native installers, never source or engine ZIPs", () => {
-  assert.ok(nativeAsset("macos-arm64", "Donut_0.31.2_aarch64.dmg"));
-  assert.ok(nativeAsset("windows-x64", "Donut_0.31.2_x64-setup.exe"));
-  assert.ok(nativeAsset("linux-x64", "donut_0.31.2_amd64.deb"));
+  assert.ok(nativeAsset("macos-arm64", "LNLogin_0.31.2_aarch64.dmg"));
+  assert.ok(nativeAsset("windows-x64", "LNLogin_0.31.2_x64-setup.exe"));
+  assert.ok(nativeAsset("linux-x64", "lnlogin_0.31.2_amd64.deb"));
   for (const name of ["../LNLogin.exe", "source.zip", "Wayfern.zip", "build.log", "LNLogin.app.zip", "a?token=secret.exe"]) {
     assert.ok(!nativeAsset("windows-x64", name));
   }
 });
 
 test("manager-only packaging has provenance/hashes and needs no engine catalog or pins", async () => {
-  const root = mkdtempSync(join(tmpdir(), "donut-manager-fixture-"));
+  const root = mkdtempSync(join(tmpdir(), "lnlogin-manager-fixture-"));
   try {
     const source = join(root, "private-source");
     const bundle = join(source, "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis");
     mkdirSync(bundle, { recursive: true });
     writeFileSync(join(source, "package.json"), JSON.stringify({ version: "0.31.2" }));
-    writeFileSync(join(bundle, "Donut_0.31.2_x64-setup.exe"), "fixture-not-an-executable");
+    writeFileSync(join(bundle, "LNLogin_0.31.2_x64-setup.exe"), "fixture-not-an-executable");
     writeFileSync(join(bundle, "private-source.zip"), "do-not-publish");
     const manifest = await packageManager({ GITHUB_ACTIONS: "true", GITHUB_WORKSPACE: root, RUNNER_TEMP: root,
-      DONUT_BUILD_PLATFORM: "windows-x64", DONUT_SOURCE_SHA: "a".repeat(40), DONUT_APP_REVISION: "2" });
+      LNLOGIN_BUILD_PLATFORM: "windows-x64", LNLOGIN_SOURCE_SHA: "a".repeat(40), LNLOGIN_APP_REVISION: "2" });
     assert.equal(manifest.mode, "manager-only");
     assert.equal(manifest.revision, 2);
     assert.equal(manifest.assets.length, 1);
     assert.match(manifest.assets[0].sha256, /^[a-f0-9]{64}$/);
-    assert.ok(readFileSync(join(root, "donut-private/MANAGER-MANIFEST.json"), "utf8").includes("manager-only"));
-    const metadata = JSON.parse(readFileSync(join(root, "donut-private/DONUT-UPDATE.json"), "utf8"));
+    assert.ok(readFileSync(join(root, "lnlogin-private/MANAGER-MANIFEST.json"), "utf8").includes("manager-only"));
+    const metadata = JSON.parse(readFileSync(join(root, "lnlogin-private/LNLOGIN-UPDATE.json"), "utf8"));
     assert.equal(metadata.schema_version, 1);
     assert.deepEqual(metadata.releases[0], { kind: "app", platform: "windows-x64", version: "0.31.2", revision: 2, ...manifest.assets[0] });
     assert.throws(() => updateMetadata({ ...manifest, version: "wrong" }));

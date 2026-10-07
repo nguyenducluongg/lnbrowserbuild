@@ -20,7 +20,7 @@ test("only the owner's manual main-branch context is accepted", () => {
   })) assert.throws(() => validateContext({ ...context, [key]: value }));
 });
 test("source must remain private with write access for private releases", () => {
-  const metadata = { full_name: "nguyenducluongg/donut", private: true, permissions: { push: true } };
+  const metadata = { full_name: "nguyenducluongg/lnlogin", private: true, permissions: { push: true } };
   assert.doesNotThrow(() => assertPrivateRepository(metadata));
   assert.throws(() => assertPrivateRepository({ ...metadata, private: false }));
   assert.throws(() => assertPrivateRepository({ ...metadata, permissions: { push: false } }));
@@ -35,13 +35,13 @@ test("source refs cannot inject shell commands or Git traversal syntax", () => {
   }
 });
 test("release tags only use trusted run IDs and allowlisted platforms", () => {
-  const env = { GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2", DONUT_BUILD_PLATFORM: "macos-arm64" };
+  const env = { GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2", LNLOGIN_BUILD_PLATFORM: "macos-arm64" };
   assert.equal(releaseTag(env), "manual-123-2-macos-arm64");
-  assert.throws(() => releaseTag({ ...env, DONUT_BUILD_PLATFORM: "../source" }));
+  assert.throws(() => releaseTag({ ...env, LNLOGIN_BUILD_PLATFORM: "../source" }));
   assert.throws(() => releaseTag({ ...env, GITHUB_RUN_ID: "injection" }));
 });
 test("loose source, debug symbols and source maps are never selected as binaries", () => {
-  for (const name of ["LNLogin.dmg", "LNLogin.exe", "donut.deb", "LNLogin.AppImage"]) assert.ok(isBundleAsset(name));
+  for (const name of ["LNLogin.dmg", "LNLogin.exe", "lnlogin.deb", "LNLogin.AppImage"]) assert.ok(isBundleAsset(name));
   for (const name of ["source.zip", "app.js", "app.js.map", "Cargo.lock", ".env", "app.pdb"]) assert.ok(!isBundleAsset(name));
 });
 
@@ -93,10 +93,10 @@ test("frontend typecheck and output guards finish before release sidecars are bu
 });
 
 test("a manager-only build cannot publish an all-in-one success release", async (t) => {
-  const scratch = mkdtempSync(join(tmpdir(), "donut-no-engine-test-"));
+  const scratch = mkdtempSync(join(tmpdir(), "lnlogin-no-engine-test-"));
   const command = process.argv[2];
   try {
-    mkdirSync(join(scratch, "donut-private"));
+    mkdirSync(join(scratch, "lnlogin-private"));
     const bundle = join(scratch, "private-source/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg");
     mkdirSync(bundle, { recursive: true });
     writeFileSync(join(bundle, "LNLogin.dmg"), "manager-only");
@@ -104,13 +104,13 @@ test("a manager-only build cannot publish an all-in-one success release", async 
     t.mock.method(globalThis, "fetch", async (_url, options) => {
       requests++;
       assert.equal(options.method, undefined);
-      return Response.json({ full_name: "nguyenducluongg/donut", private: true, permissions: { push: true } });
+      return Response.json({ full_name: "nguyenducluongg/lnlogin", private: true, permissions: { push: true } });
     });
     process.argv[2] = "publish";
     await assert.rejects(main({ ...context, GITHUB_WORKSPACE: scratch, RUNNER_TEMP: scratch,
       GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: "b".repeat(40),
-      DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "mock-token",
-      DONUT_BUILD_PLATFORM: "macos-arm64", DONUT_BUILD_OUTCOME: "success" }));
+      LNLOGIN_SOURCE_SHA: "a".repeat(40), LNLOGIN_SOURCE_TOKEN: "mock-token",
+      LNLOGIN_BUILD_PLATFORM: "macos-arm64", LNLOGIN_BUILD_OUTCOME: "success" }));
     assert.equal(requests, 1); // privacy check only; no release-create/upload
   } finally {
     if (command === undefined) delete process.argv[2]; else process.argv[2] = command;
@@ -120,10 +120,10 @@ test("a manager-only build cannot publish an all-in-one success release", async 
 });
 
 test("explicit manager-only success uploads verified native installers and no engine", async (t) => {
-  const scratch = mkdtempSync(join(tmpdir(), "donut-manager-publish-test-"));
+  const scratch = mkdtempSync(join(tmpdir(), "lnlogin-manager-publish-test-"));
   const command = process.argv[2];
   try {
-    const output = join(scratch, "donut-private");
+    const output = join(scratch, "lnlogin-private");
     mkdirSync(output);
     const bytes = Buffer.from("native-manager-fixture");
     writeFileSync(join(output, "LNLogin.exe"), bytes);
@@ -140,17 +140,17 @@ test("explicit manager-only success uploads verified native installers and no en
       }
       if (options.method === "POST") {
         assert.match(JSON.parse(options.body).body, /manager-only/);
-        return Response.json({ id: 3, html_url: "https://github.com/nguyenducluongg/donut/releases/tag/test",
-          upload_url: "https://uploads.github.com/repos/nguyenducluongg/donut/releases/3/assets{?name}" });
+        return Response.json({ id: 3, html_url: "https://github.com/nguyenducluongg/lnlogin/releases/tag/test",
+          upload_url: "https://uploads.github.com/repos/nguyenducluongg/lnlogin/releases/3/assets{?name}" });
       }
       if (options.method === "PATCH") return Response.json({});
-      return Response.json({ full_name: "nguyenducluongg/donut", private: true, permissions: { push: true } });
+      return Response.json({ full_name: "nguyenducluongg/lnlogin", private: true, permissions: { push: true } });
     });
     process.argv[2] = "publish";
-    await main({ ...context, RUNNER_TEMP: scratch, DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "synthetic-token",
-      DONUT_BUILD_PLATFORM: "windows-x64", DONUT_BUILD_OUTCOME: "success", DONUT_BUNDLE_ENGINE: "false", DONUT_APP_REVISION: "2",
+    await main({ ...context, RUNNER_TEMP: scratch, LNLOGIN_SOURCE_SHA: "a".repeat(40), LNLOGIN_SOURCE_TOKEN: "synthetic-token",
+      LNLOGIN_BUILD_PLATFORM: "windows-x64", LNLOGIN_BUILD_OUTCOME: "success", LNLOGIN_BUNDLE_ENGINE: "false", LNLOGIN_APP_REVISION: "2",
       GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1" });
-    assert.deepEqual(uploaded.sort(), ["BUILD-MANIFEST.json", "DONUT-UPDATE.json", "LNLogin.exe", "MANAGER-MANIFEST.json", "build.log"].sort());
+    assert.deepEqual(uploaded.sort(), ["BUILD-MANIFEST.json", "LNLOGIN-UPDATE.json", "LNLogin.exe", "MANAGER-MANIFEST.json", "build.log"].sort());
     assert.ok(!uploaded.some(name => name.includes("Wayfern") || name.endsWith(".zip")));
     const build = JSON.parse(readFileSync(join(output, "BUILD-MANIFEST.json"), "utf8"));
     assert.equal(build.wayfernIncluded, false);
@@ -172,10 +172,10 @@ for (const [outcome, platform, diagnostic] of [
   ["failure", "windows-x64", "upload-rejected"],
 ]) {
   test(`mocked ${platform} ${outcome} publication with ${diagnostic} log stays private`, async (t) => {
-    const scratch = mkdtempSync(join(tmpdir(), "donut-controller-test-"));
+    const scratch = mkdtempSync(join(tmpdir(), "lnlogin-controller-test-"));
     try {
       const bundle = join(scratch, "private-source/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg");
-      const output = join(scratch, "donut-private");
+      const output = join(scratch, "lnlogin-private");
       mkdirSync(bundle, { recursive: true });
       mkdirSync(output);
       writeFileSync(join(bundle, "LNLogin.dmg"), "binary-fixture");
@@ -208,17 +208,17 @@ for (const [outcome, platform, diagnostic] of [
           return new Response("{}", { status: 201 });
         }
         assert.equal(url.origin, "https://api.github.com");
-        assert.ok(url.pathname.startsWith("/repos/nguyenducluongg/donut"));
+        assert.ok(url.pathname.startsWith("/repos/nguyenducluongg/lnlogin"));
         if (options.method === "POST") {
           created = JSON.parse(options.body);
           return new Response(JSON.stringify({ id: 7,
-            upload_url: "https://uploads.github.com/repos/nguyenducluongg/donut/releases/7/assets{?name,label}" }), { status: 201 });
+            upload_url: "https://uploads.github.com/repos/nguyenducluongg/lnlogin/releases/7/assets{?name,label}" }), { status: 201 });
         }
         if (options.method === "PATCH") {
           updates.push(JSON.parse(options.body));
           return new Response("{}", { status: 200 });
         }
-        return new Response(JSON.stringify({ full_name: "nguyenducluongg/donut",
+        return new Response(JSON.stringify({ full_name: "nguyenducluongg/lnlogin",
           private: true, permissions: { push: true } }), { status: 200 });
       });
       const messages = [];
@@ -228,8 +228,8 @@ for (const [outcome, platform, diagnostic] of [
       try {
         const publication = main({ ...context, GITHUB_WORKSPACE: scratch, RUNNER_TEMP: scratch,
           GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: "b".repeat(40),
-          DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "mock-token",
-          DONUT_BUILD_PLATFORM: platform, DONUT_BUILD_OUTCOME: outcome });
+          LNLOGIN_SOURCE_SHA: "a".repeat(40), LNLOGIN_SOURCE_TOKEN: "mock-token",
+          LNLOGIN_BUILD_PLATFORM: platform, LNLOGIN_BUILD_OUTCOME: outcome });
         if (diagnostic === "upload-rejected") {
           await assert.rejects(publication, error => error instanceof PrivateReleaseError &&
             error.phase === "asset-upload" && error.httpStatus === 403);

@@ -4,14 +4,14 @@
 set -Eeuo pipefail
 trap 'printf "Build command failed at line %s (exit %s).\n" "$LINENO" "$?" >&2' ERR
 [[ "${GITHUB_ACTIONS:-}" == true ]]
-cd "${DONUT_SOURCE_DIR:?}"
+cd "${LNLOGIN_SOURCE_DIR:?}"
 
 set_stage() {
-  printf '%s\n' "$1" > "${DONUT_PRIVATE_OUTPUT_DIR:?}/build-stage.txt"
+  printf '%s\n' "$1" > "${LNLOGIN_PRIVATE_OUTPUT_DIR:?}/build-stage.txt"
   printf 'Build stage: %s\n' "$1"
 }
 
-case "${DONUT_BUILD_PLATFORM:?}" in
+case "${LNLOGIN_BUILD_PLATFORM:?}" in
   macos-arm64) build_target=aarch64-apple-darwin; build_bundles=app,dmg ;;
   macos-x64) build_target=x86_64-apple-darwin; build_bundles=app,dmg ;;
   windows-x64) build_target=x86_64-pc-windows-msvc; build_bundles=nsis ;;
@@ -26,7 +26,7 @@ export BUILD_TAG="manual-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
 export TARGET="$build_target"
 
 set_stage runner-setup
-if [[ "$DONUT_BUILD_PLATFORM" == linux-x64 ]]; then
+if [[ "$LNLOGIN_BUILD_PLATFORM" == linux-x64 ]]; then
   sudo apt-get update
   sudo apt-get install -y --no-install-recommends \
     build-essential curl wget file libwebkit2gtk-4.1-dev libxdo-dev \
@@ -51,7 +51,8 @@ pnpm install --frozen-lockfile
 set_stage node-tests
 node --test src/lib/*.test.mjs scripts/generate-licenses.test.mjs \
   src-tauri/download-xray.test.mjs scripts/internal-terms.test.mjs \
-  scripts/update-gateway.test.mjs scripts/lnlogin.test.mjs
+  scripts/update-gateway.test.mjs scripts/lnlogin.test.mjs scripts/full-rename.test.mjs \
+  maintenance/wayfern/rebrand_resources.test.mjs
 
 # Fail on frontend/type errors before the expensive release sidecar compilation.
 set_stage frontend-build
@@ -67,16 +68,16 @@ fi
 # copy hook twice or letting it choose a different Cargo target directory.
 set_stage proxy-build
 cargo build --locked --release --target "$build_target" \
-  --manifest-path src-tauri/Cargo.toml --bin donut-proxy
+  --manifest-path src-tauri/Cargo.toml --bin lnlogin-proxy
 sidecar_extension=""
-if [[ "$DONUT_BUILD_PLATFORM" == windows-x64 ]]; then sidecar_extension=.exe; fi
+if [[ "$LNLOGIN_BUILD_PLATFORM" == windows-x64 ]]; then sidecar_extension=.exe; fi
 mkdir -p src-tauri/binaries
-cp "src-tauri/target/$build_target/release/donut-proxy$sidecar_extension" \
-  "src-tauri/binaries/donut-proxy-$build_target$sidecar_extension"
+cp "src-tauri/target/$build_target/release/lnlogin-proxy$sidecar_extension" \
+  "src-tauri/binaries/lnlogin-proxy-$build_target$sidecar_extension"
 set_stage xray-download
 node src-tauri/download-xray.mjs --target "$build_target"
 
-if [[ "${DONUT_RUN_TESTS:-true}" == true ]]; then
+if [[ "${LNLOGIN_RUN_TESTS:-true}" == true ]]; then
   set_stage rust-tests
   cargo test --locked --release --target "$build_target" \
     --manifest-path src-tauri/Cargo.toml --lib local_agent -- --test-threads=1
@@ -87,15 +88,15 @@ if [[ "${DONUT_RUN_TESTS:-true}" == true ]]; then
 fi
 
 # Ad-hoc macOS signing only; no Apple account or certificate is required.
-if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
+if [[ "$LNLOGIN_BUILD_PLATFORM" == macos-* ]]; then
   export APPLE_SIGNING_IDENTITY=-
 fi
 set_stage tauri-package
 pnpm tauri build --ci --target "$build_target" --bundles "$build_bundles" \
-  --config "$DONUT_CONTROLLER_DIR/ci/tauri.ci.json" -- --locked
+  --config "$LNLOGIN_CONTROLLER_DIR/ci/tauri.ci.json" -- --locked
 git diff --exit-code -- pnpm-lock.yaml src-tauri/Cargo.lock
 
-if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
+if [[ "$LNLOGIN_BUILD_PLATFORM" == macos-* ]]; then
   set_stage package-verification
   found_app=false
   for built_app in "src-tauri/target/$build_target/release/bundle/macos/"*.app; do
@@ -103,7 +104,7 @@ if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
     test -s "$built_app/Contents/Resources/licenses/Xray-core-LICENSE.txt"
     codesign --verify --deep --strict "$built_app"
     ditto -c -k --sequesterRsrc --keepParent "$built_app" \
-      "$DONUT_PRIVATE_OUTPUT_DIR/LNLogin-$DONUT_BUILD_PLATFORM.app.zip"
+      "$LNLOGIN_PRIVATE_OUTPUT_DIR/LNLogin-$LNLOGIN_BUILD_PLATFORM.app.zip"
     found_app=true
   done
   [[ "$found_app" == true ]]

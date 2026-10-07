@@ -31,14 +31,14 @@ run-name: Manual LNLogin build (${{ inputs.platform }})
       app_revision:
         description: Positive app build revision (increase for a rebuild of the same app version)
         required: true
-        default: "1"
+        default: "3"
         type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: manual-donut-build
+  group: manual-lnlogin-build
   cancel-in-progress: false
 
 jobs:
@@ -60,9 +60,9 @@ jobs:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_RELEASE_DEBUG: "0"
       CARGO_PROFILE_RELEASE_STRIP: symbols
-      DONUT_INTERNAL_MODE: "1"
-      DONUT_APP_REVISION: ${{ inputs.app_revision }}
-      DONUT_BUNDLE_ENGINE: ${{ inputs.bundle_engine }}
+      LNLOGIN_INTERNAL_MODE: "1"
+      LNLOGIN_APP_REVISION: ${{ inputs.app_revision }}
+      LNLOGIN_BUNDLE_ENGINE: ${{ inputs.bundle_engine }}
     steps:
       - name: Checkout public build controller only
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -83,17 +83,17 @@ jobs:
       - name: Check private destination and scoped token
         id: source_check
         env:
-          DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
-          DONUT_SOURCE_REF: ${{ inputs.source_ref }}
+          LNLOGIN_SOURCE_TOKEN: ${{ secrets.LNLOGIN_SOURCE_TOKEN }}
+          LNLOGIN_SOURCE_REF: ${{ inputs.source_ref }}
         run: node builder/ci/private-release.mjs check
 
       - name: Checkout private source without keeping credentials
         id: source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          repository: nguyenducluongg/donut
+          repository: nguyenducluongg/lnlogin
           ref: ${{ inputs.source_ref }}
-          token: ${{ secrets.DONUT_SOURCE_TOKEN }}
+          token: ${{ secrets.LNLOGIN_SOURCE_TOKEN }}
           path: private-source
           persist-credentials: false
           fetch-depth: 1
@@ -102,14 +102,14 @@ jobs:
       - name: Check ready native engine pin before compiling
         if: ${{ inputs.bundle_engine }}
         env:
-          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
+          LNLOGIN_BUILD_PLATFORM: ${{ inputs.platform }}
         run: node builder/ci/bundle-engine.mjs check
 
       - name: Install, test and package (detailed output stays private)
         id: compile
         env:
-          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
-          DONUT_RUN_TESTS: ${{ inputs.run_tests }}
+          LNLOGIN_BUILD_PLATFORM: ${{ inputs.platform }}
+          LNLOGIN_RUN_TESTS: ${{ inputs.run_tests }}
           NODE_OPTIONS: --max-old-space-size=3072
         run: node builder/ci/run-build.mjs
 
@@ -117,24 +117,24 @@ jobs:
         id: bundle
         if: ${{ inputs.bundle_engine }}
         env:
-          DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
-          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
-          DONUT_SOURCE_SHA: ${{ steps.source.outputs.commit }}
+          LNLOGIN_SOURCE_TOKEN: ${{ secrets.LNLOGIN_SOURCE_TOKEN }}
+          LNLOGIN_BUILD_PLATFORM: ${{ inputs.platform }}
+          LNLOGIN_SOURCE_SHA: ${{ steps.source.outputs.commit }}
         run: node builder/ci/bundle-engine.mjs bundle
 
       - name: Prepare manager-only installers for update gateway
         id: manager
         if: ${{ !inputs.bundle_engine }}
         env:
-          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
-          DONUT_SOURCE_SHA: ${{ steps.source.outputs.commit }}
+          LNLOGIN_BUILD_PLATFORM: ${{ inputs.platform }}
+          LNLOGIN_SOURCE_SHA: ${{ steps.source.outputs.commit }}
         run: node builder/ci/package-manager.mjs
 
       - name: Save diagnostics and binaries to the private source repository
         if: ${{ always() && !cancelled() && steps.source_check.outcome == 'success' }}
         env:
-          DONUT_SOURCE_TOKEN: ${{ secrets.DONUT_SOURCE_TOKEN }}
-          DONUT_BUILD_PLATFORM: ${{ inputs.platform }}
-          DONUT_BUILD_OUTCOME: ${{ steps.compile.outcome == 'success' && (steps.bundle.outcome == 'success' || steps.manager.outcome == 'success') && 'success' || 'failure' }}
-          DONUT_SOURCE_SHA: ${{ steps.source.outputs.commit }}
+          LNLOGIN_SOURCE_TOKEN: ${{ secrets.LNLOGIN_SOURCE_TOKEN }}
+          LNLOGIN_BUILD_PLATFORM: ${{ inputs.platform }}
+          LNLOGIN_BUILD_OUTCOME: ${{ steps.compile.outcome == 'success' && (steps.bundle.outcome == 'success' || steps.manager.outcome == 'success') && 'success' || 'failure' }}
+          LNLOGIN_SOURCE_SHA: ${{ steps.source.outputs.commit }}
         run: node builder/ci/private-release.mjs publish

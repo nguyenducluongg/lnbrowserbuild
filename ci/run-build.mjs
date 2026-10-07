@@ -29,7 +29,7 @@ export async function main(env = process.env, {
     validateContext(env);
     const workspace = env.GITHUB_WORKSPACE;
     if (!workspace || !env.RUNNER_TEMP) throw new Error("Missing runner directories");
-    const privateOutput = join(env.RUNNER_TEMP, "donut-private");
+    const privateOutput = join(env.RUNNER_TEMP, "lnlogin-private");
     mkdirSync(privateOutput, { recursive: true, mode: 0o700 });
     log = openSync(join(privateOutput, "build.log"), "a", 0o600);
     const append = (value) => writeFileSync(log, value);
@@ -40,16 +40,16 @@ export async function main(env = process.env, {
     append(`Build shell: ${shell}\n`);
     console.log("Building on GitHub. Detailed diagnostics are not printed publicly.");
     const buildEnv = { ...env };
-    delete buildEnv.DONUT_SOURCE_TOKEN;
+    delete buildEnv.LNLOGIN_SOURCE_TOKEN;
     const child = spawnProcess(shell, [shellPath(join(workspace, "builder/ci/build.sh"), platform)], {
       cwd: workspace,
       // Stream to disk explicitly; do not buffer compiler output in RAM.
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...buildEnv,
-        DONUT_SOURCE_DIR: shellPath(join(workspace, "private-source"), platform),
-        DONUT_CONTROLLER_DIR: shellPath(join(workspace, "builder"), platform),
-        DONUT_PRIVATE_OUTPUT_DIR: shellPath(privateOutput, platform),
+        LNLOGIN_SOURCE_DIR: shellPath(join(workspace, "private-source"), platform),
+        LNLOGIN_CONTROLLER_DIR: shellPath(join(workspace, "builder"), platform),
+        LNLOGIN_PRIVATE_OUTPUT_DIR: shellPath(privateOutput, platform),
       },
     });
     let startupError;

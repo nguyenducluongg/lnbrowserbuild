@@ -4,7 +4,7 @@ import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { nativeAsset, updateMetadata } from "./package-manager.mjs";
 
-const SOURCE_REPOSITORY = "nguyenducluongg/donut";
+const SOURCE_REPOSITORY = "nguyenducluongg/lnlogin";
 const BUILDER_REPOSITORY = "nguyenducluongg/lnbrowserbuild";
 const TARGETS = {
   "macos-arm64": "aarch64-apple-darwin",
@@ -65,10 +65,10 @@ export function assertPrivateRepository(metadata) {
 
 export function releaseTag(env) {
   if (!/^\d+$/.test(env.GITHUB_RUN_ID ?? "") ||
-      !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? "") || !TARGETS[env.DONUT_BUILD_PLATFORM]) {
+      !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? "") || !TARGETS[env.LNLOGIN_BUILD_PLATFORM]) {
     throw new Error("Invalid release context");
   }
-  return `manual-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}-${env.DONUT_BUILD_PLATFORM}`;
+  return `manual-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}-${env.LNLOGIN_BUILD_PLATFORM}`;
 }
 
 export function isBundleAsset(name) {
@@ -92,31 +92,31 @@ async function api(token, path, options = {}, phase = "repository-check") {
 
 export async function main(env = process.env) {
   validateContext(env);
-  const token = env.DONUT_SOURCE_TOKEN;
+  const token = env.LNLOGIN_SOURCE_TOKEN;
   if (!token) throw new Error("Missing scoped token");
   // Recheck before publishing: changing the source repo to public must fail closed.
   assertPrivateRepository(await api(token, ""));
   if (process.argv[2] === "check") {
-    validateSourceRef(env.DONUT_SOURCE_REF);
+    validateSourceRef(env.LNLOGIN_SOURCE_REF);
     console.log("Scoped token and private destination verified.");
     return;
   }
   if (process.argv[2] !== "publish") throw new Error("Invalid command");
 
   const tag = releaseTag(env);
-  const output = join(env.RUNNER_TEMP, "donut-private");
+  const output = join(env.RUNNER_TEMP, "lnlogin-private");
   mkdirSync(output, { recursive: true, mode: 0o700 });
-  const success = env.DONUT_BUILD_OUTCOME === "success";
+  const success = env.LNLOGIN_BUILD_OUTCOME === "success";
   const binaries = [];
   let combined = null;
   let manager = null;
-  if (success && env.DONUT_BUNDLE_ENGINE === "false") {
+  if (success && env.LNLOGIN_BUNDLE_ENGINE === "false") {
     manager = JSON.parse(readFileSync(join(output, "MANAGER-MANIFEST.json"), "utf8"));
-    if (manager.mode !== "manager-only" || manager.platform !== env.DONUT_BUILD_PLATFORM ||
-        manager.sourceCommit !== env.DONUT_SOURCE_SHA || !Number.isInteger(manager.revision) ||
-        manager.revision !== Number(env.DONUT_APP_REVISION ?? 1) || !manager.assets?.length) throw new Error("Invalid manager manifest");
+    if (manager.mode !== "manager-only" || manager.platform !== env.LNLOGIN_BUILD_PLATFORM ||
+        manager.sourceCommit !== env.LNLOGIN_SOURCE_SHA || !Number.isInteger(manager.revision) ||
+        manager.revision !== Number(env.LNLOGIN_APP_REVISION ?? 1) || !manager.assets?.length) throw new Error("Invalid manager manifest");
     for (const asset of manager.assets) {
-      if (!nativeAsset(env.DONUT_BUILD_PLATFORM, asset.file) || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw new Error("Invalid manager asset");
+      if (!nativeAsset(env.LNLOGIN_BUILD_PLATFORM, asset.file) || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw new Error("Invalid manager asset");
       const file = join(output, asset.file);
       const stat = lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== asset.size) throw new Error("Invalid manager installer");
@@ -126,12 +126,12 @@ export async function main(env = process.env) {
       binaries.push(file);
     }
     // Regenerate from the installer metadata just reverified, never trust a stale sidecar.
-    writeFileSync(join(output, "DONUT-UPDATE.json"), `${JSON.stringify(updateMetadata(manager), null, 2)}\n`, { mode: 0o600 });
+    writeFileSync(join(output, "LNLOGIN-UPDATE.json"), `${JSON.stringify(updateMetadata(manager), null, 2)}\n`, { mode: 0o600 });
   } else if (success) {
     combined = JSON.parse(readFileSync(join(output, "BUNDLE-MANIFEST.json"), "utf8"));
-    const expected = `LNLogin-${env.DONUT_BUILD_PLATFORM}${env.DONUT_BUILD_PLATFORM === "windows-x64" ? ".zip" : ".tar.gz"}`;
-    if (combined.file !== expected || combined.platform !== env.DONUT_BUILD_PLATFORM ||
-        combined.sourceCommit !== env.DONUT_SOURCE_SHA || !combined.engine?.asset_id ||
+    const expected = `LNLogin-${env.LNLOGIN_BUILD_PLATFORM}${env.LNLOGIN_BUILD_PLATFORM === "windows-x64" ? ".zip" : ".tar.gz"}`;
+    if (combined.file !== expected || combined.platform !== env.LNLOGIN_BUILD_PLATFORM ||
+        combined.sourceCommit !== env.LNLOGIN_SOURCE_SHA || !combined.engine?.asset_id ||
         !/^[a-f0-9]{64}$/.test(combined.sha256)) throw new Error("Invalid combined package manifest");
     const archive = join(output, expected);
     const stat = lstatSync(archive);
@@ -144,16 +144,16 @@ export async function main(env = process.env) {
   const manifest = join(output, "BUILD-MANIFEST.json");
   writeFileSync(manifest, `${JSON.stringify({
     sourceRepository: SOURCE_REPOSITORY,
-    sourceCommit: env.DONUT_SOURCE_SHA || null,
+    sourceCommit: env.LNLOGIN_SOURCE_SHA || null,
     controllerCommit: env.GITHUB_SHA,
-    platform: env.DONUT_BUILD_PLATFORM,
-    buildOutcome: env.DONUT_BUILD_OUTCOME,
+    platform: env.LNLOGIN_BUILD_PLATFORM,
+    buildOutcome: env.LNLOGIN_BUILD_OUTCOME,
     workflowRun: `https://github.com/${BUILDER_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`,
     binaries: binaries.map((path) => basename(path)),
     wayfernIncluded: success && combined !== null,
     managerPackage: manager,
     combinedPackage: combined,
-    signing: !success ? "not-produced" : env.DONUT_BUILD_PLATFORM.startsWith("macos-") ? "ad-hoc; not notarized" : "unsigned",
+    signing: !success ? "not-produced" : env.LNLOGIN_BUILD_PLATFORM.startsWith("macos-") ? "ad-hoc; not notarized" : "unsigned",
   }, null, 2)}\n`, { mode: 0o600 });
 
   const release = await api(token, "/releases", {
@@ -161,7 +161,7 @@ export async function main(env = process.env) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       tag_name: tag,
-      target_commitish: /^[a-f0-9]{40}$/.test(env.DONUT_SOURCE_SHA ?? "") ? env.DONUT_SOURCE_SHA : "main",
+      target_commitish: /^[a-f0-9]{40}$/.test(env.LNLOGIN_SOURCE_SHA ?? "") ? env.LNLOGIN_SOURCE_SHA : "main",
       name: `${success ? "Build" : "Failed build diagnostics"}: ${tag}`,
       body: success && manager
         ? "Manual manager-only build for the internal update gateway. Native manager installers only; fixed engine is downloaded separately from the approved gateway. Source and diagnostics remain private. Not runtime acceptance or a notarized distribution."
@@ -173,15 +173,15 @@ export async function main(env = process.env) {
     }),
   }, "release-create");
   // Preserve a useful link even if a later asset upload fails.
-  const releaseLink = release.html_url?.startsWith("https://github.com/nguyenducluongg/donut/releases/")
-    ? release.html_url : "https://github.com/nguyenducluongg/donut/releases";
+  const releaseLink = release.html_url?.startsWith("https://github.com/nguyenducluongg/lnlogin/releases/")
+    ? release.html_url : "https://github.com/nguyenducluongg/lnlogin/releases";
   console.log(`Private draft release: ${releaseLink}`);
   const upload = new URL(release.upload_url.split("{")[0]);
   if (upload.protocol !== "https:" || upload.hostname !== "uploads.github.com") {
     throw new Error("Unexpected upload destination");
   }
   const assets = [manifest, ...binaries];
-  if (manager) assets.push(join(output, "MANAGER-MANIFEST.json"), join(output, "DONUT-UPDATE.json"));
+  if (manager) assets.push(join(output, "MANAGER-MANIFEST.json"), join(output, "LNLOGIN-UPDATE.json"));
   assets.push(ensureDiagnosticLog(output));
   for (const asset of assets) {
     const stat = lstatSync(asset);
