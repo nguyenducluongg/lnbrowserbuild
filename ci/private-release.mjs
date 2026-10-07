@@ -129,7 +129,7 @@ export async function main(env = process.env) {
     writeFileSync(join(output, "DONUT-UPDATE.json"), `${JSON.stringify(updateMetadata(manager), null, 2)}\n`, { mode: 0o600 });
   } else if (success) {
     combined = JSON.parse(readFileSync(join(output, "BUNDLE-MANIFEST.json"), "utf8"));
-    const expected = `Donut-${env.DONUT_BUILD_PLATFORM}${env.DONUT_BUILD_PLATFORM === "windows-x64" ? ".zip" : ".tar.gz"}`;
+    const expected = `LNLogin-${env.DONUT_BUILD_PLATFORM}${env.DONUT_BUILD_PLATFORM === "windows-x64" ? ".zip" : ".tar.gz"}`;
     if (combined.file !== expected || combined.platform !== env.DONUT_BUILD_PLATFORM ||
         combined.sourceCommit !== env.DONUT_SOURCE_SHA || !combined.engine?.asset_id ||
         !/^[a-f0-9]{64}$/.test(combined.sha256)) throw new Error("Invalid combined package manifest");
@@ -166,7 +166,7 @@ export async function main(env = process.env) {
       body: success && manager
         ? "Manual manager-only build for the internal update gateway. Native manager installers only; fixed engine is downloaded separately from the approved gateway. Source and diagnostics remain private. Not runtime acceptance or a notarized distribution."
         : success
-        ? "Manual public-runner build. Download the single Donut platform archive: manager, verified fixed engine, catalog and storage-relative launcher included. Source and detailed diagnostics stay private. This is not runtime acceptance or a notarized distribution. Read START-HERE.txt after extracting."
+        ? "Manual public-runner build. Download the single LNLogin platform archive: manager, verified fixed engine, catalog and storage-relative launcher included. Source and detailed diagnostics stay private. This is not runtime acceptance or a notarized distribution. Read START-HERE.txt after extracting."
         : "Failed manual build/bundling. Private diagnostics only; no manager-only success package. This is not runtime acceptance.",
       draft: true,
       prerelease: true,

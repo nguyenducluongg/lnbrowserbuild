@@ -143,20 +143,20 @@ class PackagingTests(unittest.TestCase):
         self.assertFalse(manifest["runtimeAcceptance"])
         self.assertEqual(manifest["sha256"], digest(output / manifest["file"]))
         with tarfile.open(output / manifest["file"]) as tar:
-            prefix = "Donut-linux-x64/"
+            prefix = "LNLogin-linux-x64/"
             self.assertTrue(tar.getmember(prefix + "binary/linux-x64/Wayfern/Current").issym())
             self.assertEqual(tar.getmember(prefix + "start-donut.sh").mode & 0o777, 0o755)
-            for name in ["manager/Donut.AppImage", "binary/wayfern-local.json", "START-HERE.txt", "PACKAGE-MANIFEST.json"]:
+            for name in ["manager/LNLogin.AppImage", "binary/wayfern-local.json", "START-HERE.txt", "PACKAGE-MANIFEST.json"]:
                 self.assertIsNotNone(tar.getmember(prefix + name))
         self.assertEqual(list(output.glob("bundle-*")), [])
 
     def test_windows_combined_archive(self):
         source, output = self.fixture("windows-x64")
         package(source, output, "windows-x64", self.archive)
-        with zipfile.ZipFile(output / "Donut-windows-x64.zip") as zipped:
-            for name in ["manager/Donut-setup.exe", "binary/windows-x64/Wayfern/chrome.exe",
-                         "binary/wayfern-local.json", "Start-Donut.cmd", "Start-Donut.ps1"]:
-                self.assertIn("Donut-windows-x64/" + name, zipped.namelist())
+        with zipfile.ZipFile(output / "LNLogin-windows-x64.zip") as zipped:
+            for name in ["manager/LNLogin-setup.exe", "binary/windows-x64/Wayfern/chrome.exe",
+                         "binary/wayfern-local.json", "Start-LNLogin.cmd", "Start-LNLogin.ps1"]:
+                self.assertIn("LNLogin-windows-x64/" + name, zipped.namelist())
 
     def test_corrupt_zip_no_success_manifest(self):
         source, output = self.fixture("windows-x64")

@@ -51,7 +51,7 @@ pnpm install --frozen-lockfile
 set_stage node-tests
 node --test src/lib/*.test.mjs scripts/generate-licenses.test.mjs \
   src-tauri/download-xray.test.mjs scripts/internal-terms.test.mjs \
-  scripts/update-gateway.test.mjs
+  scripts/update-gateway.test.mjs scripts/lnlogin.test.mjs
 
 # Fail on frontend/type errors before the expensive release sidecar compilation.
 set_stage frontend-build
@@ -103,7 +103,7 @@ if [[ "$DONUT_BUILD_PLATFORM" == macos-* ]]; then
     test -s "$built_app/Contents/Resources/licenses/Xray-core-LICENSE.txt"
     codesign --verify --deep --strict "$built_app"
     ditto -c -k --sequesterRsrc --keepParent "$built_app" \
-      "$DONUT_PRIVATE_OUTPUT_DIR/Donut-$DONUT_BUILD_PLATFORM.app.zip"
+      "$DONUT_PRIVATE_OUTPUT_DIR/LNLogin-$DONUT_BUILD_PLATFORM.app.zip"
     found_app=true
   done
   [[ "$found_app" == true ]]

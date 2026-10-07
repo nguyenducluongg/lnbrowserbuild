@@ -41,7 +41,7 @@ test("release tags only use trusted run IDs and allowlisted platforms", () => {
   assert.throws(() => releaseTag({ ...env, GITHUB_RUN_ID: "injection" }));
 });
 test("loose source, debug symbols and source maps are never selected as binaries", () => {
-  for (const name of ["Donut.dmg", "Donut.exe", "donut.deb", "Donut.AppImage"]) assert.ok(isBundleAsset(name));
+  for (const name of ["LNLogin.dmg", "LNLogin.exe", "donut.deb", "LNLogin.AppImage"]) assert.ok(isBundleAsset(name));
   for (const name of ["source.zip", "app.js", "app.js.map", "Cargo.lock", ".env", "app.pdb"]) assert.ok(!isBundleAsset(name));
 });
 
@@ -99,7 +99,7 @@ test("a manager-only build cannot publish an all-in-one success release", async 
     mkdirSync(join(scratch, "donut-private"));
     const bundle = join(scratch, "private-source/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg");
     mkdirSync(bundle, { recursive: true });
-    writeFileSync(join(bundle, "Donut.dmg"), "manager-only");
+    writeFileSync(join(bundle, "LNLogin.dmg"), "manager-only");
     let requests = 0;
     t.mock.method(globalThis, "fetch", async (_url, options) => {
       requests++;
@@ -126,10 +126,10 @@ test("explicit manager-only success uploads verified native installers and no en
     const output = join(scratch, "donut-private");
     mkdirSync(output);
     const bytes = Buffer.from("native-manager-fixture");
-    writeFileSync(join(output, "Donut.exe"), bytes);
+    writeFileSync(join(output, "LNLogin.exe"), bytes);
     writeFileSync(join(output, "MANAGER-MANIFEST.json"), JSON.stringify({ mode: "manager-only", platform: "windows-x64",
       sourceCommit: "a".repeat(40), version: "0.31.2", revision: 2,
-      assets: [{ file: "Donut.exe", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }] }));
+      assets: [{ file: "LNLogin.exe", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }] }));
     const uploaded = [];
     t.mock.method(globalThis, "fetch", async (requestUrl, options) => {
       const url = new URL(requestUrl);
@@ -150,7 +150,7 @@ test("explicit manager-only success uploads verified native installers and no en
     await main({ ...context, RUNNER_TEMP: scratch, DONUT_SOURCE_SHA: "a".repeat(40), DONUT_SOURCE_TOKEN: "synthetic-token",
       DONUT_BUILD_PLATFORM: "windows-x64", DONUT_BUILD_OUTCOME: "success", DONUT_BUNDLE_ENGINE: "false", DONUT_APP_REVISION: "2",
       GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1" });
-    assert.deepEqual(uploaded.sort(), ["BUILD-MANIFEST.json", "DONUT-UPDATE.json", "Donut.exe", "MANAGER-MANIFEST.json", "build.log"].sort());
+    assert.deepEqual(uploaded.sort(), ["BUILD-MANIFEST.json", "DONUT-UPDATE.json", "LNLogin.exe", "MANAGER-MANIFEST.json", "build.log"].sort());
     assert.ok(!uploaded.some(name => name.includes("Wayfern") || name.endsWith(".zip")));
     const build = JSON.parse(readFileSync(join(output, "BUILD-MANIFEST.json"), "utf8"));
     assert.equal(build.wayfernIncluded, false);
@@ -178,10 +178,10 @@ for (const [outcome, platform, diagnostic] of [
       const output = join(scratch, "donut-private");
       mkdirSync(bundle, { recursive: true });
       mkdirSync(output);
-      writeFileSync(join(bundle, "Donut.dmg"), "binary-fixture");
+      writeFileSync(join(bundle, "LNLogin.dmg"), "binary-fixture");
       writeFileSync(join(bundle, "private-source.zip"), "must-not-upload");
       const packageBytes = Buffer.from("combined manager-engine-fixture");
-      const packageName = `Donut-${platform}${platform === "windows-x64" ? ".zip" : ".tar.gz"}`;
+      const packageName = `LNLogin-${platform}${platform === "windows-x64" ? ".zip" : ".tar.gz"}`;
       writeFileSync(join(output, packageName), packageBytes);
       writeFileSync(join(output, "BUNDLE-MANIFEST.json"), JSON.stringify({
         file: packageName, platform, sourceCommit: "a".repeat(40),

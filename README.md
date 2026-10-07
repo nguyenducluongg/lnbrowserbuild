@@ -1,4 +1,4 @@
-# Bộ build thủ công cho Donut nội bộ
+# Bộ build thủ công cho LNLogin nội bộ
 
 Repo public này chỉ chứa controller build cho **bản fix nội bộ, không thương mại**.
 Source app nằm ở [donut private](https://github.com/nguyenducluongg/donut).
@@ -6,30 +6,30 @@ Không có source app, browser bundle hoặc profiles trong repo public.
 
 ## Bấm build
 
-1. Mở [Actions → Build Donut manually](https://github.com/nguyenducluongg/lnbrowserbuild/actions/workflows/manual-build.yml).
+1. Mở [Actions → Build LNLogin manually](https://github.com/nguyenducluongg/lnbrowserbuild/actions/workflows/manual-build.yml).
 2. Bấm **Run workflow mới**, branch `main`.
 3. `source_ref=main` hoặc full commit SHA source; chọn `macos-arm64`,
    `windows-x64` hoặc `linux-x64`, giữ `run_tests=true`.
    Mặc định `bundle_engine=false`: chỉ build installer app, không cần engine pin.
    `app_revision=1` ở bản đầu; tăng revision khi rebuild cùng version app.
    Build tự đính kèm `DONUT-UPDATE.json` vào private Release. Trên gateway chỉ
-   Đồng bộ → tick bản Sẵn sàng → Công bố, không nhập hash/catalog/OS thủ công.
+   Đồng bộ → chọn bản Sẵn sàng → Xem lại → Công bố, không nhập hash/catalog/OS thủ công.
 4. Bấm nút xanh; approve environment nếu đã cấu hình.
 5. Tải kết quả/log ở [Releases private](https://github.com/nguyenducluongg/donut/releases).
    Success tạo prerelease private; failure giữ draft với `build.log` và manifest.
 
-Mặc định tải installer native Donut (.dmg/.exe/.deb/.AppImage). Binary Wayfern
-tải riêng trong app từ `https://browser.diemdien.com`, không cấu hình GitHub PAT
+Mặc định tải installer native LNLogin (.dmg/.exe/.deb/.AppImage). Binary Wayfern
+tải riêng trong app từ `https://lnlogin.com`, không cấu hình GitHub PAT
 trên máy chạy app. Source và outputs vẫn lưu Releases private; gateway chỉ công
 bố các installer/engine mà admin đã chọn. Không tự trigger Actions.
 
 Nếu chủ động chọn `bundle_engine=true`, cần engine pins còn đúng trong source.
-Khi đó tải **một gói** `Donut-macos-arm64.tar.gz`, `Donut-windows-x64.zip` hoặc
-`Donut-linux-x64.tar.gz`. Gói chứa manager, fixed engine native, catalog,
+Khi đó tải **một gói** `LNLogin-macos-arm64.tar.gz`, `LNLogin-windows-x64.zip` hoặc
+`LNLogin-linux-x64.tar.gz`. Gói chứa manager, fixed engine native, catalog,
 manifest và launcher. Giải nén toàn bộ trên ổ muốn lưu dữ liệu, đọc
-`START-HERE.txt`, thoát Donut đang chạy rồi dùng launcher.
+`START-HERE.txt`, thoát LNLogin đang chạy rồi dùng launcher.
 Mac có `.app` chạy tại chỗ; Windows cài installer trong `manager/` rồi dùng
-`Start-Donut.cmd` (có thể truyền đường dẫn app đã cài); Linux có AppImage/deb,
+`Start-LNLogin.cmd` (có thể truyền đường dẫn app đã cài); Linux có AppImage/deb,
 launcher cần DISPLAY có sẵn, kể cả Xvfb. Không tự cài VNC hay bật API/settings.
 Launcher giữ state/cache/temp của manager trong `.runtime` cạnh gói; không
 chuyển dữ liệu cũ và không thay đổi chính sách bảo mật OS.

@@ -1,5 +1,5 @@
-name: Build Donut manually
-run-name: Manual Donut build (${{ inputs.platform }})
+name: Build LNLogin manually
+run-name: Manual LNLogin build (${{ inputs.platform }})
 
 "on":
   workflow_dispatch:

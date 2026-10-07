@@ -9,7 +9,7 @@ test("manager publication selects only native installers, never source or engine
   assert.ok(nativeAsset("macos-arm64", "Donut_0.31.2_aarch64.dmg"));
   assert.ok(nativeAsset("windows-x64", "Donut_0.31.2_x64-setup.exe"));
   assert.ok(nativeAsset("linux-x64", "donut_0.31.2_amd64.deb"));
-  for (const name of ["../Donut.exe", "source.zip", "Wayfern.zip", "build.log", "Donut.app.zip", "a?token=secret.exe"]) {
+  for (const name of ["../LNLogin.exe", "source.zip", "Wayfern.zip", "build.log", "LNLogin.app.zip", "a?token=secret.exe"]) {
     assert.ok(!nativeAsset("windows-x64", name));
   }
 });
@@ -45,8 +45,8 @@ test("manual workflow defaults to manager-only and never auto-runs Actions", () 
   assert.doesNotMatch(workflow, /^\s*(push|pull_request|schedule|repository_dispatch):/m);
 });
 test("Linux gateway metadata picks deb while both native installers remain in the private Release", () => {
-  const assets = ["Donut.deb", "Donut.AppImage"].map(file => ({ file, size: 123, sha256: "a".repeat(64) }));
+  const assets = ["LNLogin.deb", "LNLogin.AppImage"].map(file => ({ file, size: 123, sha256: "a".repeat(64) }));
   const result = updateMetadata({ mode: "manager-only", platform: "linux-x64", version: "0.31.2", revision: 1, assets });
-  assert.deepEqual(result.releases.map(r => r.file), ["Donut.deb"]);
+  assert.deepEqual(result.releases.map(r => r.file), ["LNLogin.deb"]);
   assert.equal(assets.length, 2);
 });

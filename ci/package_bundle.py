@@ -132,10 +132,10 @@ cd "$root"
 
 
 def write_launchers(root, platform):
-    instructions = """Donut internal all-in-one package
+    instructions = """LNLogin internal all-in-one package
 
 Extract the WHOLE archive to writable storage (external SSD on the Mac).
-Quit any already-running Donut process, including its tray instance.
+Quit any already-running LNLogin process, including its tray instance.
 Use the launcher every time: it selects this fixed binary and stores manager
 data/cache/logs and helper temp files under .runtime next to the package.
 Do not launch the manager directly if you need this storage configuration.
@@ -155,15 +155,15 @@ if (-not $ManagerPath) {
   $candidates = @()
   foreach ($key in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
                      'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
-    Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Donut' -and $_.InstallLocation } | ForEach-Object {
+    Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'LNLogin' -and $_.InstallLocation } | ForEach-Object {
       $candidates += Join-Path $_.InstallLocation 'donutbrowser.exe'
     }
   }
-  $candidates += Join-Path $env:LOCALAPPDATA 'Donut\donutbrowser.exe'
+  $candidates += Join-Path $env:LOCALAPPDATA 'LNLogin\donutbrowser.exe'
   $ManagerPath = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 }
 if (-not $ManagerPath -or -not (Test-Path -LiteralPath $ManagerPath -PathType Leaf)) {
-  throw 'Install manager\Donut-setup.exe first. If needed: .\Start-Donut.ps1 -ManagerPath "D:\Apps\Donut\donutbrowser.exe" (use your actual path).'
+  throw 'Install manager\LNLogin-setup.exe first. If needed: .\Start-LNLogin.ps1 -ManagerPath "D:\Apps\LNLogin\donutbrowser.exe" (use your actual path).'
 }
 $env:DONUTBROWSER_BINARY_ROOT = Join-Path $root 'binary'
 $env:DONUTBROWSER_DATA_ROOT = Join-Path $root '.runtime'
@@ -177,13 +177,13 @@ foreach ($name in @('DONUTBROWSER_WAYFERN_APP','DONUTBROWSER_WAYFERN_PATH','DONU
 Set-Location -LiteralPath $root
 Start-Process -FilePath $ManagerPath -WorkingDirectory $root
 '''
-        (root / "Start-Donut.ps1").write_text(script, encoding="utf-8")
+        (root / "Start-LNLogin.ps1").write_text(script, encoding="utf-8")
         cmd = r'''@echo off
 setlocal
 set "donut_manager=%~1"
-if not defined donut_manager if exist "%LOCALAPPDATA%\Donut\donutbrowser.exe" set "donut_manager=%LOCALAPPDATA%\Donut\donutbrowser.exe"
-if not defined donut_manager if exist "%ProgramFiles%\Donut\donutbrowser.exe" set "donut_manager=%ProgramFiles%\Donut\donutbrowser.exe"
-if not defined donut_manager if exist "%ProgramFiles%\Donut Browser\donutbrowser.exe" set "donut_manager=%ProgramFiles%\Donut Browser\donutbrowser.exe"
+if not defined donut_manager if exist "%LOCALAPPDATA%\LNLogin\donutbrowser.exe" set "donut_manager=%LOCALAPPDATA%\LNLogin\donutbrowser.exe"
+if not defined donut_manager if exist "%ProgramFiles%\LNLogin\donutbrowser.exe" set "donut_manager=%ProgramFiles%\LNLogin\donutbrowser.exe"
+if not defined donut_manager if exist "%ProgramFiles%\LNLogin\donutbrowser.exe" set "donut_manager=%ProgramFiles%\LNLogin\donutbrowser.exe"
 if not defined donut_manager goto missing
 if not exist "%donut_manager%" goto missing
 set "DONUTBROWSER_BINARY_ROOT=%~dp0binary"
@@ -200,18 +200,18 @@ if not exist "%TEMP%" exit /b 1
 start "" /D "%~dp0" "%donut_manager%"
 exit /b 0
 :missing
-echo Install manager\Donut-setup.exe first. Custom path: Start-Donut.cmd "your-installed-donutbrowser.exe"
+echo Install manager\LNLogin-setup.exe first. Custom path: Start-LNLogin.cmd "your-installed-donutbrowser.exe"
 pause
 exit /b 1
 '''
-        (root / "Start-Donut.cmd").write_bytes(cmd.replace("\n", "\r\n").encode("utf-8"))
-        instructions += "Windows: install manager/Donut-setup.exe (choose your storage path),\nthen Start-Donut.cmd. WebView2 runtime may be required by the installer.\nFor a custom install: Start-Donut.cmd \"<actual-installed-exe>\".\nThe CMD launcher needs no PowerShell execution-policy change. Optional\nStart-Donut.ps1 offers registry lookup and -ManagerPath when policy allows.\n"
+        (root / "Start-LNLogin.cmd").write_bytes(cmd.replace("\n", "\r\n").encode("utf-8"))
+        instructions += "Windows: install manager/LNLogin-setup.exe (choose your storage path),\nthen Start-LNLogin.cmd. WebView2 runtime may be required by the installer.\nFor a custom install: Start-LNLogin.cmd \"<actual-installed-exe>\".\nThe CMD launcher needs no PowerShell execution-policy change. Optional\nStart-LNLogin.ps1 offers registry lookup and -ManagerPath when policy allows.\n"
     else:
         prefix = '#!/usr/bin/env bash\nset -euo pipefail\nroot="$(cd -- "$(dirname -- "$0")" && pwd -P)"\n'
         if platform.startswith("macos-"):
-            name = "Start-Donut.command"
-            script = prefix + COMMON_ENV + 'exec "$root/Donut.app/Contents/MacOS/donutbrowser" "$@"\n'
-            instructions += "macOS: open Start-Donut.command. Manager is ad-hoc signed, not notarized;\nGatekeeper may need user approval. The launcher does not remove quarantine.\n"
+            name = "Start-LNLogin.command"
+            script = prefix + COMMON_ENV + 'exec "$root/LNLogin.app/Contents/MacOS/donutbrowser" "$@"\n'
+            instructions += "macOS: open Start-LNLogin.command. Manager is ad-hoc signed, not notarized;\nGatekeeper may need user approval. The launcher does not remove quarantine.\n"
         else:
             name = "start-donut.sh"
             script = prefix + COMMON_ENV + '''export XDG_CACHE_HOME="$root/.runtime/xdg-cache"
@@ -221,7 +221,7 @@ if [[ -z "${DISPLAY:-}" ]]; then
   printf 'DISPLAY required: use an existing X11/Xvfb session, then run this launcher.\n' >&2
   exit 1
 fi
-exec "$root/manager/Donut.AppImage" "$@"
+exec "$root/manager/LNLogin.AppImage" "$@"
 '''
             instructions += "Linux: use ./start-donut.sh with an existing DISPLAY (real X11 or Xvfb).\nThis is still a Tauri manager, not a display-free daemon. No GUI/VNC setup,\nAPI token/settings or services are auto-created. Enable the local API through\nyour existing configuration/setup; keep loopback/bearer auth. API use only\ndoes not require viewing the GUI, but this build requires a display backend.\nAppImage needs host libraries/FUSE; if FUSE is unavailable, the AppImage\nruntime's APPIMAGE_EXTRACT_AND_RUN=1 can be supplied with temp on .runtime.\n"
         (root / name).write_text(script, encoding="utf-8")
@@ -249,7 +249,7 @@ def package(source, output, platform, engine_zip):
     if Path(engine_zip).stat().st_size != pin["size"] or digest(engine_zip) != pin["sha256"]:
         raise ValueError("Engine ZIP checksum mismatch")
     built = source / "src-tauri/target" / TARGETS[platform] / "release/bundle"
-    package_name = f"Donut-{platform}"
+    package_name = f"LNLogin-{platform}"
     # Temporary paths are always under the runner output (SSD in local tests).
     with tempfile.TemporaryDirectory(prefix="bundle-", dir=output) as scratch:
         scratch = Path(scratch)
@@ -269,18 +269,18 @@ def package(source, output, platform, engine_zip):
             if not (app / "Contents/MacOS/donutbrowser").is_file():
                 raise ValueError("Manager executable not found")
             subprocess.run(["codesign", "--verify", "--deep", "--strict", str(engine)], check=True)
-            shutil.copytree(app, root / "Donut.app", symlinks=True)
-            subprocess.run(["codesign", "--verify", "--deep", "--strict", str(root / "Donut.app")], check=True)
+            shutil.copytree(app, root / "LNLogin.app", symlinks=True)
+            subprocess.run(["codesign", "--verify", "--deep", "--strict", str(root / "LNLogin.app")], check=True)
         else:
             manager = root / "manager"
             manager.mkdir()
             if platform == "windows-x64":
                 installer = unique((built / "nsis").glob("*.exe"), "NSIS installer")
-                shutil.copy2(installer, manager / "Donut-setup.exe")
+                shutil.copy2(installer, manager / "LNLogin-setup.exe")
             else:
                 appimage = unique((built / "appimage").glob("*.AppImage"), "AppImage")
-                shutil.copy2(appimage, manager / "Donut.AppImage")
-                (manager / "Donut.AppImage").chmod(0o755)
+                shutil.copy2(appimage, manager / "LNLogin.AppImage")
+                (manager / "LNLogin.AppImage").chmod(0o755)
                 deb = unique((built / "deb").glob("*.deb"), "Debian package")
                 shutil.copy2(deb, manager / deb.name)
         write_launchers(root, platform)
