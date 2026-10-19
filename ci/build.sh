@@ -53,6 +53,12 @@ node --test src/lib/*.test.mjs scripts/generate-licenses.test.mjs \
   src-tauri/download-xray.test.mjs scripts/internal-terms.test.mjs \
   scripts/update-gateway.test.mjs scripts/lnlogin.test.mjs scripts/full-rename.test.mjs \
   maintenance/wayfern/rebrand_resources.test.mjs
+if [[ -f scripts/download-lifecycle.test.mjs ]]; then
+  node --max-old-space-size=256 --experimental-vm-modules --test scripts/download-lifecycle.test.mjs
+fi
+if [[ -f update-gateway/tests/captcha-layout.test.mjs ]]; then
+  node --max-old-space-size=256 --test update-gateway/tests/captcha-layout.test.mjs
+fi
 
 # Fail on frontend/type errors before the expensive release sidecar compilation.
 set_stage frontend-build
@@ -85,6 +91,17 @@ if [[ "${LNLOGIN_RUN_TESTS:-true}" == true ]]; then
     --manifest-path src-tauri/Cargo.toml --lib local_wayfern -- --test-threads=1
   cargo test --locked --release --target "$build_target" \
     --manifest-path src-tauri/Cargo.toml --lib local_runtime -- --test-threads=1
+  if [[ -f src-tauri/src/browser_lifecycle.rs ]]; then
+    # Small source/unit regressions only. Never launch an installed browser.
+    for test_filter in browser_process::tests browser_lifecycle::tests profile::cache::tests \
+      a_clone_keeps_the_os_its_source_claimed the_camera_switches_keep_missing_files \
+      the_device_is_read_from_the_stored_identity the_device_view_is_the_answer \
+      never_run_is_empty_but_sealed_is_not_assumed_empty test_extract_tar_xz_with_test_archive \
+      openapi_documents_profile_fingerprint_readback descriptor_budget_reserves_headroom; do
+      cargo test --locked --release --target "$build_target" \
+        --manifest-path src-tauri/Cargo.toml --lib "$test_filter" -- --test-threads=1
+    done
+  fi
 fi
 
 # Ad-hoc macOS signing only; no Apple account or certificate is required.
