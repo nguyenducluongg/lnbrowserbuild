@@ -76,6 +76,7 @@ test("manual build includes forced-local Rust regression tests without engine E2
   const build = readFileSync(new URL("./build.sh", import.meta.url), "utf8");
   assert.match(build, /--lib local_wayfern -- --test-threads=1/);
   assert.match(build, /--lib local_runtime -- --test-threads=1/);
+  assert.match(build, /for test_filter in [^\n]*\bprofile::types::tests\b/);
   assert.doesNotMatch(build, /pnpm e2e|wayfern\.com|wayfern-local.*curl/);
 });
 

@@ -93,7 +93,7 @@ if [[ "${LNLOGIN_RUN_TESTS:-true}" == true ]]; then
     --manifest-path src-tauri/Cargo.toml --lib local_runtime -- --test-threads=1
   if [[ -f src-tauri/src/browser_lifecycle.rs ]]; then
     # Small source/unit regressions only. Never launch an installed browser.
-    for test_filter in browser_process::tests browser_lifecycle::tests profile::cache::tests \
+    for test_filter in browser_process::tests browser_lifecycle::tests profile::cache::tests profile::types::tests \
       a_clone_keeps_the_os_its_source_claimed the_camera_switches_keep_missing_files \
       the_device_is_read_from_the_stored_identity the_device_view_is_the_answer \
       never_run_is_empty_but_sealed_is_not_assumed_empty test_extract_tar_xz_with_test_archive \
